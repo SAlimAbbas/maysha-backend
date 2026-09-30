@@ -1,24 +1,67 @@
-*.log
-.DS_Store
+# ==============================================================================
+# Maysha Backend (Laravel) - Git Ignore Configuration
+# ==============================================================================
+
+# Internal Master Directives, Prompts & AI Architecture Documents
+01_MASTER_DIRECTIVE*
+02_Maysha_Minimalist_UI_Replica_Master_Prompt*
+03_MAYSHA_ANTIGRAVITY_TECH_STACK*
+Maysha_Minimalist_UI_Replica_Master_Prompt*
+maysha_architecture_and_visual_blueprint*
+*claude.md
+*CLAUDE.md
+*claude*
+refrence*claude*
+reference*claude*
+agents.md
+AGENTS.md
+GEMINI.md
+.agents/
+refrences/
+references/
+
+# Environment Files & Secrets
 .env
+.env.*
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
-/.fleet
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
+*.pem
+*.key
+*.cert
+/storage/*.key
 /auth.json
+
+# Dependencies & Build
 /node_modules
+/vendor
 /public/build
 /public/hot
 /public/storage
-/storage/*.key
+
+# Logs & Framework Storage
+*.log
 /storage/pail
-/vendor
+.phpunit.result.cache
+/.phpunit.cache
+.phpactor.json
 Homestead.json
 Homestead.yaml
+
+# SQLite Databases & Local Data
+*.sqlite
+*.sqlite-journal
+
+# IDE & Editor Settings
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
 Thumbs.db
+desktop.ini
+ehthumbs.db
