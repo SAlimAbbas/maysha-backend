@@ -3,21 +3,25 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\BannerResource;
+use App\Http\Traits\ApiResponse;
 use App\Models\Banner;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class BannerController extends Controller
 {
-    /**
-     * Get active banners (up to 7) for storefront carousel, or all for admin.
-     */
-    public function index(Request $request)
-    {
-        $query = Banner::query();
+    use ApiResponse;
 
-        if (!$request->boolean('all')) {
+    /**
+     * Get active banners (up to 7) for storefront carousel.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $query = Banner::with(['desktopMedia', 'mobileMedia']);
+
+        if (! $request->boolean('all')) {
             $query->where('is_active', true);
         }
 
@@ -26,183 +30,147 @@ class BannerController extends Controller
             ->take(7)
             ->get();
 
-        return response()->json([
-            'status' => 'success',
-            'count' => $banners->count(),
-            'max_allowed' => 7,
-            'data' => $banners
-        ]);
+        return $this->success(
+            BannerResource::collection($banners),
+            'Banners retrieved successfully.',
+            [
+                'count' => $banners->count(),
+                'maxAllowed' => 7,
+            ]
+        );
     }
 
     /**
-     * Admin create / upload a new banner (enforces maximum of 7 active banners).
+     * Admin create a new banner (strictly capped at 7 active banners via database transaction).
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
             'subtitle' => 'nullable|string|max:255',
-            'desktop_image' => 'required', // can be uploaded file or string URL
-            'mobile_image' => 'nullable',
+            'desktop_media_id' => 'nullable|exists:media,id',
+            'mobile_media_id' => 'nullable|exists:media,id',
+            'desktop_image' => 'nullable|string|max:500',
+            'mobile_image' => 'nullable|string|max:500',
             'link_url' => 'nullable|string|max:500',
             'badge_text' => 'nullable|string|max:100',
             'is_active' => 'nullable|boolean',
             'sort_order' => 'nullable|integer',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
+        if (empty($validated['desktop_media_id']) && empty($validated['desktop_image'])) {
+            return $this->error('A valid desktop media asset or image must be provided.', 422, [
+                'desktop_media_id' => ['Please upload or select a desktop media asset.'],
+            ]);
         }
 
         $isActive = $request->boolean('is_active', true);
 
-        if ($isActive) {
-            $activeCount = Banner::where('is_active', true)->count();
-            if ($activeCount >= 7) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Maximum limit of 7 active carousel banners reached. Please deactivate or remove an existing banner before adding a new active banner.'
-                ], 422);
+        $banner = DB::transaction(function () use ($validated, $isActive) {
+            if ($isActive) {
+                // Lock rows to prevent concurrent race condition exceeding 7 active banners
+                $activeCount = Banner::where('is_active', true)->lockForUpdate()->count();
+                if ($activeCount >= 7) {
+                    abort(response()->json([
+                        'success' => false,
+                        'message' => 'Maximum limit of 7 active carousel banners reached. Please deactivate or remove an existing banner before creating a new active banner.',
+                    ], 422));
+                }
             }
-        }
 
-        $desktopImageUrl = '';
-        if ($request->hasFile('desktop_image')) {
-            $path = $request->file('desktop_image')->store('banners', 'public');
-            $desktopImageUrl = Storage::url($path);
-        } else {
-            $desktopImageUrl = (string)$request->input('desktop_image');
-        }
+            return Banner::create([
+                'title' => $validated['title'],
+                'subtitle' => $validated['subtitle'] ?? null,
+                'desktop_media_id' => $validated['desktop_media_id'] ?? null,
+                'mobile_media_id' => $validated['mobile_media_id'] ?? null,
+                'desktop_image' => $validated['desktop_image'] ?? null,
+                'mobile_image' => $validated['mobile_image'] ?? null,
+                'link_url' => $validated['link_url'] ?? '/shop',
+                'badge_text' => $validated['badge_text'] ?? null,
+                'is_active' => $isActive,
+                'sort_order' => $validated['sort_order'] ?? (Banner::count() + 1),
+            ]);
+        });
 
-        $mobileImageUrl = null;
-        if ($request->hasFile('mobile_image')) {
-            $path = $request->file('mobile_image')->store('banners', 'public');
-            $mobileImageUrl = Storage::url($path);
-        } elseif ($request->filled('mobile_image')) {
-            $mobileImageUrl = (string)$request->input('mobile_image');
-        }
-
-        $banner = Banner::create([
-            'title' => $request->input('title'),
-            'subtitle' => $request->input('subtitle'),
-            'desktop_image' => $desktopImageUrl,
-            'mobile_image' => $mobileImageUrl,
-            'link_url' => $request->input('link_url', '/shop'),
-            'badge_text' => $request->input('badge_text'),
-            'is_active' => $isActive,
-            'sort_order' => $request->input('sort_order', Banner::count() + 1),
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Banner created successfully.',
-            'data' => $banner
-        ], 201);
+        return $this->success(
+            new BannerResource($banner),
+            'Banner created successfully.',
+            [],
+            201
+        );
     }
 
     /**
-     * Update an existing banner.
+     * Admin update an existing banner.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id): JsonResponse
     {
-        $banner = Banner::find($id);
-        if (!$banner) {
-            return response()->json(['status' => 'error', 'message' => 'Banner not found'], 404);
-        }
+        $banner = Banner::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'subtitle' => 'nullable|string|max:255',
+            'desktop_media_id' => 'nullable|exists:media,id',
+            'mobile_media_id' => 'nullable|exists:media,id',
+            'desktop_image' => 'nullable|string|max:500',
+            'mobile_image' => 'nullable|string|max:500',
             'link_url' => 'nullable|string|max:500',
             'badge_text' => 'nullable|string|max:100',
             'is_active' => 'nullable|boolean',
             'sort_order' => 'nullable|integer',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
-        }
+        DB::transaction(function () use ($request, $banner, $validated) {
+            if ($request->has('is_active') && $request->boolean('is_active') && ! $banner->is_active) {
+                $activeCount = Banner::where('is_active', true)
+                    ->where('id', '!=', $banner->id)
+                    ->lockForUpdate()
+                    ->count();
 
-        if ($request->has('is_active') && $request->boolean('is_active') && !$banner->is_active) {
-            $activeCount = Banner::where('is_active', true)->where('id', '!=', $banner->id)->count();
-            if ($activeCount >= 7) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Cannot activate this banner: maximum 7 active carousel banners allowed.'
-                ], 422);
+                if ($activeCount >= 7) {
+                    abort(response()->json([
+                        'success' => false,
+                        'message' => 'Cannot activate banner: maximum of 7 active carousel banners allowed.',
+                    ], 422));
+                }
             }
-        }
 
-        if ($request->hasFile('desktop_image')) {
-            $path = $request->file('desktop_image')->store('banners', 'public');
-            $banner->desktop_image = Storage::url($path);
-        } elseif ($request->filled('desktop_image')) {
-            $banner->desktop_image = $request->input('desktop_image');
-        }
+            $banner->update($validated);
+        });
 
-        if ($request->hasFile('mobile_image')) {
-            $path = $request->file('mobile_image')->store('banners', 'public');
-            $banner->mobile_image = Storage::url($path);
-        } elseif ($request->filled('mobile_image')) {
-            $banner->mobile_image = $request->input('mobile_image');
-        }
-
-        $banner->fill($request->only([
-            'title',
-            'subtitle',
-            'link_url',
-            'badge_text',
-            'is_active',
-            'sort_order',
-        ]));
-
-        $banner->save();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Banner updated successfully.',
-            'data' => $banner
-        ]);
+        return $this->success(
+            new BannerResource($banner->fresh(['desktopMedia', 'mobileMedia'])),
+            'Banner updated successfully.'
+        );
     }
 
     /**
-     * Delete a banner.
+     * Admin delete a banner.
      */
-    public function destroy($id)
+    public function destroy(string $id): JsonResponse
     {
-        $banner = Banner::find($id);
-        if (!$banner) {
-            return response()->json(['status' => 'error', 'message' => 'Banner not found'], 404);
-        }
-
+        $banner = Banner::findOrFail($id);
         $banner->delete();
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Banner deleted successfully.'
-        ]);
+        return $this->success(null, 'Banner deleted successfully.');
     }
 
     /**
-     * Reorder banners array of IDs: [3, 1, 2].
+     * Admin reorder banners.
      */
-    public function reorder(Request $request)
+    public function reorder(Request $request): JsonResponse
     {
         $request->validate([
             'banner_ids' => 'required|array',
             'banner_ids.*' => 'integer|exists:banners,id',
         ]);
 
-        foreach ($request->input('banner_ids') as $index => $id) {
-            Banner::where('id', $id)->update(['sort_order' => $index + 1]);
-        }
+        DB::transaction(function () use ($request) {
+            foreach ($request->input('banner_ids') as $index => $id) {
+                Banner::where('id', $id)->update(['sort_order' => $index + 1]);
+            }
+        });
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Banners reordered successfully.'
-        ]);
+        return $this->success(null, 'Banners reordered successfully.');
     }
 }
