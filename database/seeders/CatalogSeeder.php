@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Concern;
+use App\Models\Media;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Review;
@@ -19,7 +20,7 @@ class CatalogSeeder extends Seeder
                 'slug' => 'cleansers',
                 'name' => 'Cleansers',
                 'subtitle' => 'Gentle, non-stripping cleansers that balance skin pH',
-                'image' => 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80',
+                'image' => '/images/products/face-wash/face-wash-1.png',
                 'sort_order' => 1,
             ],
             [
@@ -52,9 +53,9 @@ class CatalogSeeder extends Seeder
             ],
             [
                 'slug' => 'treatments',
-                'name' => 'Treatments',
-                'subtitle' => 'Targeted exfoliants, blemish treatments and restorative facial oils',
-                'image' => 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=600&q=80',
+                'name' => 'Treatments & Oils',
+                'subtitle' => 'Targeted botanical oils, scalp therapy, and fragrant ambiance',
+                'image' => '/images/products/rosemary-hair-oil/hair-oil-1.png',
                 'sort_order' => 6,
             ],
         ];
@@ -110,6 +111,102 @@ class CatalogSeeder extends Seeder
 
         // 3. Products
         $productsData = [
+            [
+                'slug' => 'vitamin-c-niacinamide-face-wash',
+                'name' => 'Vitamin C & Niacinamide Face Wash',
+                'subtitle' => 'Brightens & Soothes | Mild everyday herbal cleanser designed for regular use with Aloe Vera & Glycerin.',
+                'category_slug' => 'cleansers',
+                'concern_slug' => 'uneven-tone',
+                'badge' => 'Bestseller',
+                'is_featured' => true,
+                'rating_avg' => 4.9,
+                'review_count' => 186,
+                'key_benefits' => [
+                    'Mild everyday cleanser designed for gentle, regular daily use',
+                    'Sulfate-free & paraben-free: Cleanses without stripping essential moisture',
+                    'Vitamin C & Niacinamide help improve dullness, uneven tone, and dark spots',
+                    'Aloe Vera extract and Glycerin support barrier repair and deep hydration',
+                    'Regulates excess sebum and refines pores for a soft, balanced complexion',
+                ],
+                'skin_types' => ['All Skin Types', 'Sensitive Skin', 'Dull & Uneven Skin', 'Normal to Oily'],
+                'ingredients' => 'Aqua, Sodium Cocoyl Isethionate, Glycerin, Niacinamide (Vitamin B3), Ethyl Ascorbic Acid (Vitamin C), Aloe Barbadensis (Aloe Vera) Leaf Extract, Cocamidopropyl Betaine, Allantoin, Panthenol (Pro-Vitamin B5), Citric Acid, Phenoxyethanol, Ethylhexylglycerin.',
+                'usage_instructions' => 'Take a coin-sized amount of face wash on your wet hands. Lather gently: Massage onto your face in circular motions for 30–60 seconds. Rinse thoroughly with water and pat dry with a clean towel. Use twice daily, morning and night.',
+                'description' => 'Maysha Vitamin C & Niacinamide Face Wash is a gentle everyday herbal cleanser designed to brighten, soothe, and protect your skin. Infused with antioxidant-rich Vitamin C, barrier-strengthening Niacinamide, and soothing Aloe Vera, it cleanses away daily impurities, pollution, and excess sebum without disturbing your skin\'s natural moisture barrier. Skin feels refreshed, soft, and visibly radiant.',
+                'variants' => [
+                    ['sku' => 'VCFW-100', 'size_label' => '100 ml', 'price_paise' => 39900, 'mrp_paise' => 49900, 'stock' => 200],
+                    ['sku' => 'VCFW-BOGO', 'size_label' => 'Pack of 2 (Buy 1 Get 1 Free)', 'price_paise' => 49900, 'mrp_paise' => 99800, 'stock' => 150],
+                ],
+                'images' => [
+                    '/images/products/face-wash/face-wash-1.png',
+                    '/images/products/face-wash/face-wash-2.png',
+                    '/images/products/face-wash/face-wash-3.png',
+                    '/images/products/face-wash/face-wash-4.png',
+                ],
+            ],
+            [
+                'slug' => 'rosemary-hair-oil',
+                'name' => 'Rosemary Hair Oil with Blend of 8 Oils',
+                'subtitle' => 'Nourishes Roots & Natural Shine | Promotes Healthier, Stronger Hair & Controls Frizz.',
+                'category_slug' => 'treatments',
+                'concern_slug' => 'barrier-repair',
+                'badge' => 'Trending',
+                'is_featured' => true,
+                'rating_avg' => 4.9,
+                'review_count' => 142,
+                'key_benefits' => [
+                    'Strengthens hair roots and minimizes hair fall due to breakage',
+                    'Potent blend of 8 pure botanical oils for natural shine and softness',
+                    'Controls frizz and significantly improves hair manageability',
+                    'Rosemary and castor oil help promote fuller, healthier-looking hair growth',
+                    'Nourishes dry scalp and helps repair environmental hair damage',
+                ],
+                'skin_types' => ['All Hair Types', 'Dry Scalp', 'Damaged Hair', 'Frizzy Hair'],
+                'ingredients' => 'Rosemary (Rosmarinus Officinalis) Leaf Oil, Pure Moroccan Argan Oil, Sweet Almond Oil, Golden Jojoba Oil, Extra Virgin Olive Oil, Pure Castor Seed Oil, Virgin Coconut Oil, Watermelon Seed Oil, Tocopherol (Vitamin E).',
+                'usage_instructions' => 'Take a small amount of oil on your palm. Massage gently into scalp and hair, focusing on roots and dry strands. Leave on for a few hours or overnight for deep nourishment. Wash off with a mild shampoo for best results. Use 2–3 times a week.',
+                'description' => 'Maysha Rosemary Hair Oil is a revitalizing Ayurvedic botanical elixir powered by pure rosemary extract and a synergistic blend of 8 nutrient-dense natural oils. Designed to penetrate deep into hair follicles, it invigorates scalp circulation, fortifies hair roots, tames unruly frizz, and restores silky radiance without greasy heaviness.',
+                'variants' => [
+                    ['sku' => 'RHO-100', 'size_label' => '100 ml', 'price_paise' => 49900, 'mrp_paise' => 69900, 'stock' => 180],
+                    ['sku' => 'RHO-200', 'size_label' => '200 ml (Value Pack)', 'price_paise' => 89900, 'mrp_paise' => 139800, 'stock' => 100],
+                ],
+                'images' => [
+                    '/images/products/rosemary-hair-oil/hair-oil-1.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-2.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-4.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-3.png',
+                ],
+            ],
+            [
+                'slug' => 'rose-air-freshener',
+                'name' => 'Maysha Rose Air Freshener',
+                'subtitle' => 'The Next Level Of Fragrance | Fine Mist Spray for Bedroom, Living Room & Everyday Spaces.',
+                'category_slug' => 'treatments',
+                'concern_slug' => 'dehydration-dryness',
+                'badge' => 'New Launch',
+                'is_featured' => true,
+                'rating_avg' => 4.8,
+                'review_count' => 96,
+                'key_benefits' => [
+                    'Fresh, authentic Damask rose fragrance that uplifts any room',
+                    'Instant odor-neutralizing action to eliminate stale odors quickly',
+                    'Ergonomic fine-mist trigger spray for wide, even coverage',
+                    'Perfect for bedroom, living room, office, kitchen, and car',
+                    'Long-lasting botanical aroma without harsh chemical aerosols',
+                ],
+                'skin_types' => ['Home Ambiance', 'Office Friendly', 'Automobile', 'Living Spaces'],
+                'ingredients' => 'Purified Water, Rosa Damascena (Rose) Flower Distillate, Natural Botanical Fragrance Essential Oils, Odor Neutralizing Bio-Enzymes, PEG-40 Hydrogenated Castor Oil, Preservative Complex.',
+                'usage_instructions' => 'Turn the nozzle to the spray position. Hold bottle upright and aim toward the center of the room. Spray 4–5 bursts evenly in the desired area. Reapply whenever you want a fresh, revitalizing rose ambiance.',
+                'description' => 'Transform your daily surroundings into a serene floral sanctuary with Maysha Rose Air Freshener. Formulated with authentic rose flower distillate and odor-capturing natural bio-enzymes, this fine-mist spray eliminates unwanted odors immediately while diffusing a luxurious, fresh rose fragrance that lingers gently for hours.',
+                'variants' => [
+                    ['sku' => 'RAF-300', 'size_label' => '300 ml', 'price_paise' => 34900, 'mrp_paise' => 49900, 'stock' => 150],
+                    ['sku' => 'RAF-TWIN', 'size_label' => 'Twin Pack (300 ml x 2)', 'price_paise' => 59900, 'mrp_paise' => 99800, 'stock' => 80],
+                ],
+                'images' => [
+                    '/images/products/rose-air-freshener/air-freshener-1.png',
+                    '/images/products/rose-air-freshener/air-freshener-4.png',
+                    '/images/products/rose-air-freshener/air-freshener-2.png',
+                    '/images/products/rose-air-freshener/air-freshener-3.png',
+                ],
+            ],
             [
                 'slug' => 'gentle-face-cleanser',
                 'name' => 'Gentle Face Cleanser',
@@ -348,6 +445,29 @@ class CatalogSeeder extends Seeder
                         'is_active' => true,
                     ]
                 );
+            }
+
+            // Product Media
+            if (! empty($pData['images'])) {
+                foreach ($pData['images'] as $idx => $imgUrl) {
+                    $media = Media::firstOrCreate(
+                        ['provider_id' => $imgUrl],
+                        [
+                            'provider' => 'local',
+                            'type' => 'image',
+                            'status' => 'ready',
+                            'alt' => $product->name,
+                        ]
+                    );
+
+                    $role = $idx === 0 ? 'primary' : ($idx === 1 ? 'hover' : 'gallery');
+                    $product->media()->syncWithoutDetaching([
+                        $media->id => [
+                            'role' => $role,
+                            'sort_order' => $idx + 1,
+                        ],
+                    ]);
+                }
             }
 
             // Reviews

@@ -11,12 +11,12 @@ class BannerSeeder extends Seeder
     {
         $banners = [
             [
-                'title' => 'Buy 1 Get 1 Free - Vitamin C Face Wash',
-                'subtitle' => 'Brighten & cleanse with potent Vitamin C + Niacinamide',
-                'desktop_image' => '/banners/bogo-hero-banner.jpg',
-                'mobile_image' => '/banners/bogo-hero-banner.jpg',
-                'link_url' => '/collections/face-cleansers',
-                'badge_text' => 'SPECIAL OFFER • BOGO',
+                'title' => 'BUY 1 GET 1 FREE — Vitamin C & Niacinamide Face Wash',
+                'subtitle' => 'Gentle care. Visible results. Buy 1 Get 1 Free on all Vitamin C & Niacinamide Face Wash.',
+                'desktop_image' => '/banners/maysha-bogo-banner.png',
+                'mobile_image' => '/banners/maysha-bogo-banner.png',
+                'link_url' => '/products/vitamin-c-niacinamide-face-wash',
+                'badge_text' => null,
                 'is_active' => true,
                 'sort_order' => 1,
             ],
