@@ -28,6 +28,18 @@ class ProductController extends Controller
             $query->whereHas('category', fn ($q) => $q->where('slug', $catSlug));
         }
 
+        // Filter: Benefit (Target Need)
+        if ($request->filled('benefit')) {
+            $benefit = $request->input('benefit');
+            $query->where('key_benefits', 'LIKE', "%{$benefit}%");
+        }
+
+        // Filter: Skin Type / Application Type
+        if ($request->filled('skin_type')) {
+            $skinType = $request->input('skin_type');
+            $query->where('skin_types', 'LIKE', "%{$skinType}%");
+        }
+
         // Filter: Concern
         if ($request->filled('concern')) {
             $conSlug = $request->input('concern');
@@ -112,6 +124,86 @@ class ProductController extends Controller
         $perPage = min((int) $request->input('per_page', 12), 48);
         $paginated = $query->paginate($perPage);
 
+        // Dynamic Facets Computation across active catalog
+        $allActive = Product::active()
+            ->with(['category', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->get();
+
+        // 1. Categories facet with live product counts
+        $catCounts = [];
+        foreach ($allActive as $p) {
+            if ($p->category) {
+                $cId = (string) $p->category->id;
+                if (!isset($catCounts[$cId])) {
+                    $catCounts[$cId] = [
+                        'id' => $cId,
+                        'name' => $p->category->name,
+                        'slug' => $p->category->slug,
+                        'count' => 0,
+                    ];
+                }
+                $catCounts[$cId]['count']++;
+            }
+        }
+        $categoriesFacet = array_values($catCounts);
+
+        // 2. Dynamic Key Benefits facet
+        $benefitsCount = [];
+        foreach ($allActive as $p) {
+            $benefits = is_array($p->key_benefits) ? $p->key_benefits : [];
+            foreach ($benefits as $b) {
+                $clean = trim((string) $b);
+                if (!empty($clean)) {
+                    $benefitsCount[$clean] = ($benefitsCount[$clean] ?? 0) + 1;
+                }
+            }
+        }
+        arsort($benefitsCount);
+        $benefitsFacet = [];
+        foreach ($benefitsCount as $name => $count) {
+            $benefitsFacet[] = ['name' => $name, 'count' => $count];
+        }
+
+        // 3. Dynamic Skin / Target Types facet
+        $skinTypesCount = [];
+        foreach ($allActive as $p) {
+            $types = is_array($p->skin_types) ? $p->skin_types : [];
+            foreach ($types as $st) {
+                $clean = trim((string) $st);
+                if (!empty($clean)) {
+                    $skinTypesCount[$clean] = ($skinTypesCount[$clean] ?? 0) + 1;
+                }
+            }
+        }
+        arsort($skinTypesCount);
+        $skinTypesFacet = [];
+        foreach ($skinTypesCount as $name => $count) {
+            $skinTypesFacet[] = ['name' => $name, 'count' => $count];
+        }
+
+        // 4. Min & Max price in catalog
+        $minPrice = 999999;
+        $maxPrice = 0;
+        foreach ($allActive as $p) {
+            foreach ($p->variants as $v) {
+                $pr = $v->price_rupees;
+                if ($pr < $minPrice) $minPrice = $pr;
+                if ($pr > $maxPrice) $maxPrice = $pr;
+            }
+        }
+        if ($minPrice === 999999) $minPrice = 299;
+        if ($maxPrice === 0) $maxPrice = 999;
+
+        $facets = [
+            'categories' => $categoriesFacet,
+            'benefits' => array_slice($benefitsFacet, 0, 10),
+            'skinTypes' => array_slice($skinTypesFacet, 0, 8),
+            'priceRange' => [
+                'min' => $minPrice,
+                'max' => $maxPrice,
+            ],
+        ];
+
         return $this->success(
             ProductResource::collection($paginated->items()),
             'Products retrieved successfully.',
@@ -120,6 +212,7 @@ class ProductController extends Controller
                 'currentPage' => $paginated->currentPage(),
                 'lastPage' => $paginated->lastPage(),
                 'perPage' => $paginated->perPage(),
+                'facets' => $facets,
             ]
         );
     }
@@ -130,7 +223,7 @@ class ProductController extends Controller
     public function bestsellers(): JsonResponse
     {
         $products = CatalogCacheService::remember('products:bestsellers', ['products', 'catalog'], 300, function () {
-            $list = Product::active()
+            return Product::active()
                 ->where(function ($q) {
                     $q->where('is_featured', true)
                         ->orWhere('badge', 'LIKE', '%Bestseller%')
@@ -140,16 +233,6 @@ class ProductController extends Controller
                 ->orderBy('review_count', 'desc')
                 ->take(8)
                 ->get();
-
-            if ($list->isEmpty()) {
-                $list = Product::active()
-                    ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
-                    ->orderBy('id', 'desc')
-                    ->take(8)
-                    ->get();
-            }
-
-            return $list;
         });
 
         return $this->success(
@@ -159,11 +242,12 @@ class ProductController extends Controller
     }
 
     /**
-     * Get newly launched formulations.
+     * Get newly launched formulations and recently added products.
      */
     public function newLaunches(): JsonResponse
     {
         $products = CatalogCacheService::remember('products:new_launches', ['products', 'catalog'], 300, function () {
+            // First get products with New Launch badge
             $list = Product::active()
                 ->where(function ($q) {
                     $q->where('badge', 'LIKE', '%New Launch%')
@@ -174,12 +258,16 @@ class ProductController extends Controller
                 ->take(8)
                 ->get();
 
-            if ($list->isEmpty()) {
-                $list = Product::active()
+            // Supplement with the latest newly added products in the catalog
+            if ($list->count() < 4) {
+                $existingIds = $list->pluck('id')->toArray();
+                $more = Product::active()
+                    ->whereNotIn('id', $existingIds)
                     ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
                     ->orderBy('id', 'desc')
-                    ->take(8)
+                    ->take(8 - $list->count())
                     ->get();
+                $list = $list->merge($more);
             }
 
             return $list;

@@ -101,6 +101,8 @@ class ProductResource extends JsonResource
             'description' => $this->description ?? '',
             'skinTypes' => $this->skin_types ?? ['All Skin Types'],
             'isFeatured' => (bool) $this->is_featured,
+            'seoTitle' => $this->seo_title ?? '',
+            'seoDescription' => $this->seo_description ?? '',
         ];
     }
 }

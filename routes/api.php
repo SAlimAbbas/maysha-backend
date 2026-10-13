@@ -194,6 +194,9 @@ Route::prefix('v1')->group(function () {
         // Coupons Management
         Route::apiResource('coupons', AdminCouponController::class);
 
+        // Categories Management
+        Route::apiResource('categories', \App\Http\Controllers\Api\V1\Admin\AdminCategoryController::class);
+
         // Settings & Newsletter Broadcast
         Route::get('/settings', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'index']);
         Route::post('/settings', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'update']);

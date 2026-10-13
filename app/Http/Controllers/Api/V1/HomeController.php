@@ -46,7 +46,8 @@ class HomeController extends Controller
             $bestsellers = Product::active()
                 ->where(function ($q) {
                     $q->where('is_featured', true)
-                        ->orWhere('badge', 'Bestseller');
+                        ->orWhere('badge', 'LIKE', '%Bestseller%')
+                        ->orWhere('badge', 'LIKE', '%Best Seller%');
                 })
                 ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
                 ->orderBy('review_count', 'desc')
@@ -54,11 +55,25 @@ class HomeController extends Controller
                 ->get();
 
             $newLaunches = Product::active()
-                ->where('badge', 'New Launch')
+                ->where(function ($q) {
+                    $q->where('badge', 'LIKE', '%New Launch%')
+                        ->orWhere('badge', 'LIKE', '%NEW%');
+                })
                 ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
                 ->orderBy('id', 'desc')
                 ->take(8)
                 ->get();
+
+            if ($newLaunches->count() < 4) {
+                $existingIds = $newLaunches->pluck('id')->toArray();
+                $more = Product::active()
+                    ->whereNotIn('id', $existingIds)
+                    ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                    ->orderBy('id', 'desc')
+                    ->take(8 - $newLaunches->count())
+                    ->get();
+                $newLaunches = $newLaunches->merge($more);
+            }
 
             $reviews = Review::approved()
                 ->where('rating', '>=', 4)
