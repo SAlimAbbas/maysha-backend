@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\AuditLog;
+use App\Models\Media;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +25,7 @@ class AdminProductController extends Controller
     {
         $products = Product::with(['category', 'concern', 'variants', 'media'])
             ->orderBy('id', 'desc')
-            ->paginate(20);
+            ->paginate(50);
 
         return $this->success(
             ProductResource::collection($products->items()),
@@ -38,7 +39,7 @@ class AdminProductController extends Controller
     }
 
     /**
-     * Create a new product with variants.
+     * Create a new product with full rich attributes and variants.
      */
     public function store(Request $request): JsonResponse
     {
@@ -49,22 +50,25 @@ class AdminProductController extends Controller
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
             'concern_id' => 'nullable|exists:concerns,id',
-            'badge' => 'nullable|string|max:50',
+            'badge' => 'nullable|string|max:255',
             'key_benefits' => 'nullable|array',
             'skin_types' => 'nullable|array',
             'ingredients' => 'nullable|string',
             'usage_instructions' => 'nullable|string',
             'is_featured' => 'nullable|boolean',
-            'variants' => 'required|array|min:1',
-            'variants.*.sku' => 'required|string|max:100|unique:product_variants,sku',
-            'variants.*.size_label' => 'required|string|max:50',
-            'variants.*.price_rupees' => 'required|integer|min:1',
-            'variants.*.mrp_rupees' => 'required|integer|min:1',
-            'variants.*.stock' => 'required|integer|min:0',
+            'images' => 'nullable|array',
+            'variants' => 'nullable|array',
+            'price' => 'nullable|numeric|min:1',
+            'mrp' => 'nullable|numeric|min:1',
+            'stock' => 'nullable|integer|min:0',
+            'size' => 'nullable|string|max:50',
         ]);
 
         $product = DB::transaction(function () use ($validated, $request) {
             $slug = $validated['slug'] ?? Str::slug($validated['name']);
+            if (empty($slug)) {
+                $slug = 'product-' . time();
+            }
 
             $product = Product::create([
                 'name' => $validated['name'],
@@ -82,16 +86,62 @@ class AdminProductController extends Controller
                 'is_active' => true,
             ]);
 
-            foreach ($validated['variants'] as $v) {
+            // Create Variants
+            $variants = $validated['variants'] ?? [];
+            if (empty($variants)) {
+                $priceRupees = (int) ($validated['price'] ?? 699);
+                $mrpRupees = (int) ($validated['mrp'] ?? 899);
+                $stock = (int) ($validated['stock'] ?? 50);
+                $size = $validated['size'] ?? '50ml';
+
+                $variants = [
+                    [
+                        'sku' => Str::upper(Str::slug($product->name)) . '-' . Str::slug($size) . '-' . rand(100, 999),
+                        'size_label' => $size,
+                        'price_rupees' => $priceRupees,
+                        'mrp_rupees' => $mrpRupees,
+                        'stock' => $stock,
+                    ]
+                ];
+            }
+
+            foreach ($variants as $v) {
+                $sku = $v['sku'] ?? (Str::upper(Str::slug($product->name)) . '-' . Str::slug($v['size_label'] ?? 'std') . '-' . rand(100, 999));
+                $pricePaise = isset($v['price_rupees']) ? (int) $v['price_rupees'] * 100 : (int) ($v['price'] ?? 699) * 100;
+                $mrpPaise = isset($v['mrp_rupees']) ? (int) $v['mrp_rupees'] * 100 : (int) ($v['mrp'] ?? 899) * 100;
+
                 ProductVariant::create([
                     'product_id' => $product->id,
-                    'sku' => $v['sku'],
-                    'size_label' => $v['size_label'],
-                    'price_paise' => (int) $v['price_rupees'] * 100,
-                    'mrp_paise' => (int) $v['mrp_rupees'] * 100,
-                    'stock' => (int) $v['stock'],
+                    'sku' => $sku,
+                    'size_label' => $v['size_label'] ?? $v['size'] ?? '50ml',
+                    'price_paise' => $pricePaise,
+                    'mrp_paise' => $mrpPaise,
+                    'stock' => (int) ($v['stock'] ?? 50),
                     'is_active' => true,
                 ]);
+            }
+
+            // Sync Cloudinary Images
+            if (!empty($validated['images'])) {
+                foreach ($validated['images'] as $idx => $imageUrl) {
+                    if (empty($imageUrl)) continue;
+                    $media = Media::create([
+                        'provider' => 'cloudinary',
+                        'provider_id' => $imageUrl,
+                        'type' => 'image',
+                        'status' => 'ready',
+                        'uploaded_by' => $request->user()?->id,
+                    ]);
+
+                    DB::table('product_media')->insert([
+                        'product_id' => $product->id,
+                        'media_id' => $media->id,
+                        'role' => $idx === 0 ? 'primary' : 'gallery',
+                        'sort_order' => $idx,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
             AuditLog::record('product.created', $product, $request->user(), ['name' => $product->name]);
@@ -108,29 +158,120 @@ class AdminProductController extends Controller
     }
 
     /**
-     * Update product details and stock.
+     * Update product details, rich attributes, images, and variants.
      */
     public function update(Request $request, string $id): JsonResponse
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with(['variants', 'media'])->findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
+            'slug' => "sometimes|nullable|string|max:255|unique:products,slug,{$id}",
             'subtitle' => 'nullable|string|max:255',
             'description' => 'sometimes|required|string',
             'category_id' => 'sometimes|required|exists:categories,id',
             'concern_id' => 'nullable|exists:concerns,id',
-            'badge' => 'nullable|string|max:50',
+            'badge' => 'nullable|string|max:255',
+            'ingredients' => 'nullable|string',
+            'usage_instructions' => 'nullable|string',
+            'key_benefits' => 'nullable|array',
+            'skin_types' => 'nullable|array',
             'is_featured' => 'nullable|boolean',
             'is_active' => 'nullable|boolean',
+            'images' => 'nullable|array',
+            'variants' => 'nullable|array',
+            'price' => 'nullable|numeric|min:1',
+            'mrp' => 'nullable|numeric|min:1',
+            'stock' => 'nullable|integer|min:0',
         ]);
 
-        $product->update($validated);
+        DB::transaction(function () use ($product, $validated, $request) {
+            $product->update(collect($validated)->except(['images', 'variants', 'price', 'mrp', 'stock'])->toArray());
 
-        AuditLog::record('product.updated', $product, $request->user(), $validated);
+            // Sync Variants if passed as an array
+            if (isset($validated['variants']) && is_array($validated['variants']) && !empty($validated['variants'])) {
+                $keptVariantIds = [];
+                foreach ($validated['variants'] as $v) {
+                    $sizeLabel = $v['size_label'] ?? $v['size'] ?? '50ml';
+                    $pricePaise = isset($v['price_rupees']) ? (int) $v['price_rupees'] * 100 : (int) ($v['price'] ?? 699) * 100;
+                    $mrpPaise = isset($v['mrp_rupees']) ? (int) $v['mrp_rupees'] * 100 : (int) ($v['mrp'] ?? 899) * 100;
+                    $stock = (int) ($v['stock'] ?? 50);
+
+                    if (!empty($v['id']) && $existing = $product->variants()->find($v['id'])) {
+                        $existing->update([
+                            'size_label' => $sizeLabel,
+                            'price_paise' => $pricePaise,
+                            'mrp_paise' => $mrpPaise,
+                            'stock' => $stock,
+                            'is_active' => true,
+                        ]);
+                        $keptVariantIds[] = $existing->id;
+                    } else {
+                        $sku = $v['sku'] ?? (Str::upper(Str::slug($product->name)) . '-' . Str::slug($sizeLabel) . '-' . rand(100, 999));
+                        $newV = ProductVariant::create([
+                            'product_id' => $product->id,
+                            'sku' => $sku,
+                            'size_label' => $sizeLabel,
+                            'price_paise' => $pricePaise,
+                            'mrp_paise' => $mrpPaise,
+                            'stock' => $stock,
+                            'is_active' => true,
+                        ]);
+                        $keptVariantIds[] = $newV->id;
+                    }
+                }
+                if (!empty($keptVariantIds)) {
+                    $product->variants()->whereNotIn('id', $keptVariantIds)->delete();
+                }
+            } else {
+                // Update primary variant price/stock if directly passed
+                $primaryVariant = $product->variants->first();
+                if ($primaryVariant) {
+                    $updates = [];
+                    if (isset($validated['price'])) {
+                        $updates['price_paise'] = (int) $validated['price'] * 100;
+                    }
+                    if (isset($validated['mrp'])) {
+                        $updates['mrp_paise'] = (int) $validated['mrp'] * 100;
+                    }
+                    if (isset($validated['stock'])) {
+                        $updates['stock'] = (int) $validated['stock'];
+                    }
+                    if (!empty($updates)) {
+                        $primaryVariant->update($updates);
+                    }
+                }
+            }
+
+            // Sync Images if passed
+            if (isset($validated['images'])) {
+                DB::table('product_media')->where('product_id', $product->id)->delete();
+                foreach ($validated['images'] as $idx => $imageUrl) {
+                    if (empty($imageUrl)) continue;
+                    $media = Media::create([
+                        'provider' => 'cloudinary',
+                        'provider_id' => $imageUrl,
+                        'type' => 'image',
+                        'status' => 'ready',
+                        'uploaded_by' => $request->user()?->id,
+                    ]);
+
+                    DB::table('product_media')->insert([
+                        'product_id' => $product->id,
+                        'media_id' => $media->id,
+                        'role' => $idx === 0 ? 'primary' : 'gallery',
+                        'sort_order' => $idx,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            AuditLog::record('product.updated', $product, $request->user(), $validated);
+        });
 
         return $this->success(
-            new ProductResource($product->load(['category', 'concern', 'variants', 'media'])),
+            new ProductResource($product->fresh(['category', 'concern', 'variants', 'media'])),
             'Product updated successfully.'
         );
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BannerResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Banner;
+use App\Services\CatalogCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,16 +20,24 @@ class BannerController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Banner::with(['desktopMedia', 'mobileMedia']);
+        $fetchAll = $request->boolean('all');
 
-        if (! $request->boolean('all')) {
-            $query->where('is_active', true);
+        if ($fetchAll) {
+            $banners = Banner::with(['desktopMedia', 'mobileMedia'])
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('id', 'asc')
+                ->take(7)
+                ->get();
+        } else {
+            $banners = CatalogCacheService::remember('banners:active', ['banners', 'home'], 3600, function () {
+                return Banner::with(['desktopMedia', 'mobileMedia'])
+                    ->where('is_active', true)
+                    ->orderBy('sort_order', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->take(7)
+                    ->get();
+            });
         }
-
-        $banners = $query->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc')
-            ->take(7)
-            ->get();
 
         return $this->success(
             BannerResource::collection($banners),

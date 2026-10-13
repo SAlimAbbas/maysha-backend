@@ -1,12 +1,17 @@
 <?php
 
+use App\Http\Controllers\Api\ArticleController;
 use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\Admin\AdminArticleController;
+use App\Http\Controllers\Api\V1\Admin\AdminCouponController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
 use App\Http\Controllers\Api\V1\Admin\AdminProductController;
@@ -14,6 +19,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminReviewController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ContactController;
+use App\Http\Controllers\Api\V1\HomeController;
+use App\Http\Controllers\Api\V1\ShippingController;
 use App\Http\Controllers\Api\V1\StoreInfoController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +33,13 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     // Store Info & Health
     Route::get('/store-info', [StoreInfoController::class, 'show'])->middleware('throttle:api');
+
+    // Homepage Aggregate & Sitemap Slugs
+    Route::get('/home', [HomeController::class, 'index'])->middleware('throttle:catalog');
+    Route::get('/sitemap/slugs', [HomeController::class, 'slugs'])->middleware('throttle:api');
+
+    // Shipping Pincode Verification
+    Route::get('/shipping/pincode/{pin}', [ShippingController::class, 'checkPincode'])->middleware('throttle:api');
 
     // ----------------------------------------------------------------------
     // Authentication & Account
@@ -54,6 +68,24 @@ Route::prefix('v1')->group(function () {
     });
 
     // ----------------------------------------------------------------------
+    // Authenticated Customer Account (Addresses, Wishlist, Orders)
+    // ----------------------------------------------------------------------
+    Route::middleware('auth:sanctum')->prefix('account')->group(function () {
+        Route::get('/addresses', [AccountController::class, 'getAddresses']);
+        Route::post('/addresses', [AccountController::class, 'storeAddress']);
+        Route::put('/addresses/{id}', [AccountController::class, 'updateAddress']);
+        Route::delete('/addresses/{id}', [AccountController::class, 'destroyAddress']);
+
+        Route::get('/wishlist', [AccountController::class, 'getWishlist']);
+        Route::post('/wishlist/sync', [AccountController::class, 'syncWishlist']);
+        Route::post('/wishlist/{productId}', [AccountController::class, 'addToWishlist']);
+        Route::delete('/wishlist/{productId}', [AccountController::class, 'removeFromWishlist']);
+
+        Route::get('/orders', [AccountController::class, 'getOrders']);
+        Route::get('/orders/{reference}', [AccountController::class, 'getOrderDetail']);
+    });
+
+    // ----------------------------------------------------------------------
     // Public Catalog & Storefront (Throttled)
     // ----------------------------------------------------------------------
     Route::middleware('throttle:catalog')->group(function () {
@@ -75,6 +107,14 @@ Route::prefix('v1')->group(function () {
 
         // Reviews (Public Read)
         Route::get('/reviews', [ReviewController::class, 'index']);
+        Route::post('/reviews/{id}/helpful', [ReviewController::class, 'voteHelpful']);
+
+        // Articles & Journal (Public Read)
+        Route::get('/articles', [ArticleController::class, 'index']);
+        Route::get('/articles/{slug}', [ArticleController::class, 'show']);
+
+        // Coupons & Active Offers
+        Route::get('/coupons', [CouponController::class, 'index']);
     });
 
     // ----------------------------------------------------------------------
@@ -144,5 +184,20 @@ Route::prefix('v1')->group(function () {
         Route::put('/banners/{id}', [BannerController::class, 'update']);
         Route::delete('/banners/{id}', [BannerController::class, 'destroy']);
         Route::post('/banners/reorder', [BannerController::class, 'reorder']);
+
+        // Articles Management
+        Route::get('/articles', [AdminArticleController::class, 'index']);
+        Route::post('/articles', [AdminArticleController::class, 'store']);
+        Route::put('/articles/{id}', [AdminArticleController::class, 'update']);
+        Route::delete('/articles/{id}', [AdminArticleController::class, 'destroy']);
+
+        // Coupons Management
+        Route::apiResource('coupons', AdminCouponController::class);
+
+        // Settings & Newsletter Broadcast
+        Route::get('/settings', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'index']);
+        Route::post('/settings', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'update']);
+        Route::get('/subscribers', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'subscribers']);
+        Route::post('/newsletter/broadcast', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'broadcast']);
     });
 });

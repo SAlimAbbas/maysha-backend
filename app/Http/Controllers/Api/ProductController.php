@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Product;
+use App\Services\CatalogCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -128,15 +129,28 @@ class ProductController extends Controller
      */
     public function bestsellers(): JsonResponse
     {
-        $products = Product::active()
-            ->where(function ($q) {
-                $q->where('is_featured', true)
-                    ->orWhere('badge', 'Bestseller');
-            })
-            ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
-            ->orderBy('review_count', 'desc')
-            ->take(8)
-            ->get();
+        $products = CatalogCacheService::remember('products:bestsellers', ['products', 'catalog'], 300, function () {
+            $list = Product::active()
+                ->where(function ($q) {
+                    $q->where('is_featured', true)
+                        ->orWhere('badge', 'LIKE', '%Bestseller%')
+                        ->orWhere('badge', 'LIKE', '%Best Seller%');
+                })
+                ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                ->orderBy('review_count', 'desc')
+                ->take(8)
+                ->get();
+
+            if ($list->isEmpty()) {
+                $list = Product::active()
+                    ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                    ->orderBy('id', 'desc')
+                    ->take(8)
+                    ->get();
+            }
+
+            return $list;
+        });
 
         return $this->success(
             ProductResource::collection($products),
@@ -149,12 +163,27 @@ class ProductController extends Controller
      */
     public function newLaunches(): JsonResponse
     {
-        $products = Product::active()
-            ->where('badge', 'New Launch')
-            ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
-            ->orderBy('id', 'desc')
-            ->take(8)
-            ->get();
+        $products = CatalogCacheService::remember('products:new_launches', ['products', 'catalog'], 300, function () {
+            $list = Product::active()
+                ->where(function ($q) {
+                    $q->where('badge', 'LIKE', '%New Launch%')
+                        ->orWhere('badge', 'LIKE', '%NEW%');
+                })
+                ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                ->orderBy('id', 'desc')
+                ->take(8)
+                ->get();
+
+            if ($list->isEmpty()) {
+                $list = Product::active()
+                    ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                    ->orderBy('id', 'desc')
+                    ->take(8)
+                    ->get();
+            }
+
+            return $list;
+        });
 
         return $this->success(
             ProductResource::collection($products),
@@ -177,12 +206,14 @@ class ProductController extends Controller
         }
 
         // Related products in the same category
-        $related = Product::active()
-            ->where('category_id', $product->category_id)
-            ->where('id', '!=', $product->id)
-            ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
-            ->take(4)
-            ->get();
+        $related = CatalogCacheService::remember("product:related:{$product->id}", ['products', 'catalog'], 3600, function () use ($product) {
+            return Product::active()
+                ->where('category_id', $product->category_id)
+                ->where('id', '!=', $product->id)
+                ->with(['category', 'concern', 'variants' => fn ($q) => $q->where('is_active', true), 'media'])
+                ->take(4)
+                ->get();
+        });
 
         return $this->success([
             'product' => new ProductResource($product),
@@ -201,20 +232,25 @@ class ProductController extends Controller
             return $this->success(['suggestions' => []]);
         }
 
-        $products = Product::active()
-            ->where('name', 'LIKE', "%{$term}%")
-            ->select('id', 'slug', 'name', 'badge', 'rating_avg')
-            ->take(6)
-            ->get();
+        $cacheKey = 'search:suggest:'.md5($term);
+        $suggestions = CatalogCacheService::remember($cacheKey, ['products', 'search'], 300, function () use ($term) {
+            return Product::active()
+                ->where('name', 'LIKE', "%{$term}%")
+                ->select('id', 'slug', 'name', 'badge', 'rating_avg')
+                ->take(6)
+                ->get()
+                ->map(fn ($p) => [
+                    'id' => (string) $p->id,
+                    'slug' => $p->slug,
+                    'name' => $p->name,
+                    'badge' => $p->badge,
+                    'rating' => (float) $p->rating_avg,
+                ])
+                ->all();
+        });
 
         return $this->success([
-            'suggestions' => $products->map(fn ($p) => [
-                'id' => (string) $p->id,
-                'slug' => $p->slug,
-                'name' => $p->name,
-                'badge' => $p->badge,
-                'rating' => (float) $p->rating_avg,
-            ]),
+            'suggestions' => $suggestions,
         ]);
     }
 }

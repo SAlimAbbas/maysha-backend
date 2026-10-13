@@ -8,6 +8,7 @@ use App\Http\Resources\ReviewResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\ReviewHelpfulVote;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -56,7 +57,14 @@ class ReviewController extends Controller
         }
 
         $validated = $request->validated();
-        $productId = $validated['product_id'];
+        $productId = $validated['product_id'] ?? null;
+        if (! $productId && ! empty($validated['product_slug'])) {
+            $productId = Product::where('slug', $validated['product_slug'])->value('id');
+        }
+
+        if (! $productId) {
+            return $this->error('Product could not be identified.', 422);
+        }
 
         // Enforce 1 review per user per product
         $existing = Review::where('product_id', $productId)
@@ -67,13 +75,17 @@ class ReviewController extends Controller
             return $this->error('You have already submitted a review for this product.', 409);
         }
 
-        // Check if user has purchased this product (orders relation)
+        // Check if user has purchased this product and received delivery
         $hasPurchased = false;
         if (method_exists($user, 'orders')) {
             $hasPurchased = $user->orders()
                 ->where('status', 'delivered')
                 ->whereHas('items.variant', fn ($q) => $q->where('product_id', $productId))
                 ->exists();
+        }
+
+        if (! $hasPurchased && $user->role !== 'admin') {
+            return $this->error('Only verified buyers who have received delivery of this product can submit a review.', 403);
         }
 
         // Sanitize body/title text to prevent XSS
@@ -87,6 +99,7 @@ class ReviewController extends Controller
             'rating' => $validated['rating'],
             'title' => $sanitizedTitle,
             'comment' => $sanitizedComment,
+            'images' => $request->input('images', []),
             'is_verified' => $hasPurchased,
             'is_approved' => false, // Queued for admin moderation
             'helpful_count' => 0,
@@ -98,5 +111,41 @@ class ReviewController extends Controller
             [],
             201
         );
+    }
+
+    /**
+     * Cast a helpful vote on a review (prevents duplicate voting by user ID or IP).
+     */
+    public function voteHelpful(Request $request, int $id): JsonResponse
+    {
+        $review = Review::approved()->findOrFail($id);
+        $user = $request->user();
+        $ip = $request->ip();
+
+        $alreadyVoted = ReviewHelpfulVote::where('review_id', $review->id)
+            ->where(function ($q) use ($user, $ip) {
+                if ($user) {
+                    $q->where('user_id', $user->id);
+                } else {
+                    $q->where('ip', $ip);
+                }
+            })
+            ->exists();
+
+        if ($alreadyVoted) {
+            return $this->error('You have already voted on this review.', 409);
+        }
+
+        ReviewHelpfulVote::create([
+            'review_id' => $review->id,
+            'user_id' => $user?->id,
+            'ip' => $ip,
+        ]);
+
+        $review->increment('helpful_count');
+
+        return $this->success([
+            'helpfulCount' => $review->fresh()->helpful_count,
+        ], 'Thank you for your feedback!');
     }
 }

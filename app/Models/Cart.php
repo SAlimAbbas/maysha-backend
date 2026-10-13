@@ -124,14 +124,39 @@ class Cart extends Model
     }
 
     /**
-     * Locate or create a cart by token/user.
+     * Locate or create a cart by token/user. Merges guest session cart into user account cart on login.
      */
     public static function findOrCreateCurrent(string $token, ?User $user = null): self
     {
         if ($user) {
-            $cart = self::where('user_id', $user->id)->first();
-            if ($cart) {
-                return $cart;
+            $userCart = self::where('user_id', $user->id)->first();
+            $guestCart = self::where('token', $token)->whereNull('user_id')->first();
+
+            if ($guestCart && $guestCart->items()->exists()) {
+                if ($userCart) {
+                    // Merge guest items into user cart
+                    foreach ($guestCart->items as $gItem) {
+                        $existing = $userCart->items()->where('variant_id', $gItem->variant_id)->first();
+                        if ($existing) {
+                            $existing->update(['quantity' => min(10, $existing->quantity + $gItem->quantity)]);
+                        } else {
+                            $userCart->items()->create([
+                                'variant_id' => $gItem->variant_id,
+                                'quantity' => $gItem->quantity,
+                            ]);
+                        }
+                    }
+                    $guestCart->delete();
+                    return $userCart;
+                } else {
+                    // Claim guest cart for this user
+                    $guestCart->update(['user_id' => $user->id]);
+                    return $guestCart;
+                }
+            }
+
+            if ($userCart) {
+                return $userCart;
             }
         }
 

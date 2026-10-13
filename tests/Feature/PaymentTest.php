@@ -131,7 +131,7 @@ class PaymentTest extends TestCase
         ]);
 
         // Calculate expected HMAC signature with test secret key
-        $secret = env('RAZORPAY_KEY_SECRET', 'test_secret_key_123');
+        $secret = config('services.razorpay.secret') ?: 'test_secret_key_123';
         $validSignature = hash_hmac('sha256', $gatewayOrderId.'|'.$gatewayPaymentId, $secret);
 
         $response = $this->postJson('/api/v1/payments/razorpay/verify', [

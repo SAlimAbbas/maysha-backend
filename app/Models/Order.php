@@ -13,6 +13,7 @@ class Order extends Model
     protected $fillable = [
         'reference',
         'idempotency_key',
+        'invoice_no',
         'user_id',
         'guest_email',
         'guest_phone',
@@ -20,20 +21,32 @@ class Order extends Model
         'subtotal_paise',
         'discount_paise',
         'shipping_paise',
+        'tax_paise',
         'total_paise',
         'currency',
         'coupon_code',
         'shipping_address',
         'payment_method',
         'notes',
+        'tracking_no',
+        'courier',
+        'placed_at',
+        'paid_at',
+        'shipped_at',
+        'delivered_at',
     ];
 
     protected $casts = [
         'subtotal_paise' => 'integer',
         'discount_paise' => 'integer',
         'shipping_paise' => 'integer',
+        'tax_paise' => 'integer',
         'total_paise' => 'integer',
         'shipping_address' => 'array',
+        'placed_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     public function user()
@@ -49,6 +62,16 @@ class Order extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function events()
+    {
+        return $this->hasMany(OrderEvent::class);
+    }
+
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class);
     }
 
     public function getSubtotalRupeesAttribute(): int

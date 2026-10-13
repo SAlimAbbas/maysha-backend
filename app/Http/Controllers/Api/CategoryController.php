@@ -8,6 +8,7 @@ use App\Http\Resources\ConcernResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Category;
 use App\Models\Concern;
+use App\Services\CatalogCacheService;
 use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
@@ -19,10 +20,12 @@ class CategoryController extends Controller
      */
     public function categories(): JsonResponse
     {
-        $categories = Category::where('is_active', true)
-            ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
-            ->orderBy('sort_order', 'asc')
-            ->get();
+        $categories = CatalogCacheService::remember('categories:all', ['categories', 'catalog'], 3600, function () {
+            return Category::where('is_active', true)
+                ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+                ->orderBy('sort_order', 'asc')
+                ->get();
+        });
 
         return $this->success(
             CategoryResource::collection($categories),
@@ -35,9 +38,11 @@ class CategoryController extends Controller
      */
     public function concerns(): JsonResponse
     {
-        $concerns = Concern::where('is_active', true)
-            ->orderBy('sort_order', 'asc')
-            ->get();
+        $concerns = CatalogCacheService::remember('concerns:all', ['concerns', 'catalog'], 3600, function () {
+            return Concern::where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->get();
+        });
 
         return $this->success(
             ConcernResource::collection($concerns),

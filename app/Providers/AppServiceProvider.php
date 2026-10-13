@@ -2,6 +2,18 @@
 
 namespace App\Providers;
 
+use App\Models\Banner;
+use App\Models\Category;
+use App\Models\Concern;
+use App\Models\Product;
+use App\Models\Review;
+use App\Models\SiteSetting;
+use App\Observers\BannerObserver;
+use App\Observers\CategoryObserver;
+use App\Observers\ConcernObserver;
+use App\Observers\ProductObserver;
+use App\Observers\ReviewObserver;
+use App\Observers\SiteSettingObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -23,6 +35,25 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->registerModelObservers();
+
+        \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
+            $frontendUrl = rtrim(config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:3000')), '/');
+            return "{$frontendUrl}/auth/reset-password?token={$token}&email=" . urlencode($notifiable->getEmailForPasswordReset());
+        });
+    }
+
+    /**
+     * Register model observers for catalog cache invalidation and ISR revalidation.
+     */
+    protected function registerModelObservers(): void
+    {
+        Product::observe(ProductObserver::class);
+        Category::observe(CategoryObserver::class);
+        Concern::observe(ConcernObserver::class);
+        Banner::observe(BannerObserver::class);
+        SiteSetting::observe(SiteSettingObserver::class);
+        Review::observe(ReviewObserver::class);
     }
 
     /**

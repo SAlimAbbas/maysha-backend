@@ -45,6 +45,15 @@ class AuthController extends Controller
 
         event(new Registered($user));
 
+        \App\Models\NewsletterSubscriber::firstOrCreate(
+            ['email' => strtolower($user->email)],
+            ['source' => 'account_registration', 'is_active' => true]
+        );
+
+        if ($guestToken = $request->header('X-Cart-Token')) {
+            app(\App\Actions\MergeGuestCartAction::class)->execute($guestToken, $user);
+        }
+
         $token = $user->createToken('maysha-storefront')->plainTextToken;
 
         return $this->success([
@@ -73,6 +82,10 @@ class AuthController extends Controller
         }
 
         $user->update(['last_login_at' => now()]);
+
+        if ($guestToken = $request->header('X-Cart-Token')) {
+            app(\App\Actions\MergeGuestCartAction::class)->execute($guestToken, $user);
+        }
 
         $token = $user->createToken('maysha-storefront')->plainTextToken;
 

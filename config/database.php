@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
 use Pdo\Mysql;
 
 return [
@@ -145,11 +144,11 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' => env('REDIS_CLIENT', extension_loaded('redis') ? 'phpredis' : 'predis'),
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-database-'),
+            'prefix' => env('REDIS_PREFIX', 'maysha:'),
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 
@@ -166,17 +165,58 @@ return [
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
         ],
 
+        // Redis LRU Instance (Cache & Responses)
         'cache' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
+            'url' => env('REDIS_CACHE_URL', env('REDIS_URL')),
+            'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_CACHE_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_CACHE_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_CACHE_PORT', env('REDIS_PORT', '6379')),
             'database' => env('REDIS_CACHE_DB', '1'),
             'max_retries' => env('REDIS_MAX_RETRIES', 3),
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+        ],
+
+        // Redis Session
+        'session' => [
+            'url' => env('REDIS_SESSION_URL', env('REDIS_URL')),
+            'host' => env('REDIS_SESSION_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_SESSION_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_SESSION_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_SESSION_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('REDIS_SESSION_DB', '2'),
+        ],
+
+        // Redis Queues (No-eviction)
+        'queue' => [
+            'url' => env('REDIS_QUEUE_URL', env('REDIS_URL')),
+            'host' => env('REDIS_QUEUE_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_QUEUE_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_QUEUE_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_QUEUE_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('REDIS_QUEUE_DB', '3'),
+        ],
+
+        // Redis Rate Limiter
+        'limiter' => [
+            'url' => env('REDIS_LIMITER_URL', env('REDIS_URL')),
+            'host' => env('REDIS_LIMITER_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_LIMITER_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_LIMITER_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_LIMITER_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('REDIS_LIMITER_DB', '4'),
+        ],
+
+        // Redis Persistent Instance (Carts, Idempotency Keys, Counters)
+        'persist' => [
+            'url' => env('REDIS_PERSIST_URL', env('REDIS_URL')),
+            'host' => env('REDIS_PERSIST_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_PERSIST_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_PERSIST_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_PERSIST_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('REDIS_PERSIST_DB', '5'),
         ],
 
     ],

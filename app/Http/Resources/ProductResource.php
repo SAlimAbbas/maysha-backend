@@ -20,19 +20,46 @@ class ProductResource extends JsonResource
             ? (int) round((($mrp - $price) / $mrp) * 100)
             : 0;
 
-        // Resolve images from product_media or fallback attributes
+        // Resolve images: Cloudinary first, then local client product images, then safe fallbacks
         $images = [];
         if ($this->relationLoaded('media') && $this->media->isNotEmpty()) {
             foreach ($this->media as $mediaItem) {
-                $images[] = $mediaItem->getDeliveryUrl('gallery');
+                $deliveryUrl = $mediaItem->getDeliveryUrl('gallery');
+                if (!empty($deliveryUrl)) {
+                    $images[] = $deliveryUrl;
+                }
             }
         }
 
-        // If no media pivot records exist, provide default clean product images
+        // If no media pivot records exist, check for known local client product assets
+        if (empty($images)) {
+            $slug = $this->slug ?? '';
+            if (str_contains($slug, 'face-wash')) {
+                $images = [
+                    '/images/products/face-wash/face-wash-1.png',
+                    '/images/products/face-wash/face-wash-2.png',
+                    '/images/products/face-wash/face-wash-3.png',
+                    '/images/products/face-wash/face-wash-4.png',
+                ];
+            } elseif (str_contains($slug, 'hair-oil') || str_contains($slug, 'rosemary')) {
+                $images = [
+                    '/images/products/rosemary-hair-oil/hair-oil-1.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-2.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-4.png',
+                    '/images/products/rosemary-hair-oil/hair-oil-3.png',
+                ];
+            } elseif (str_contains($slug, 'air-freshener') || str_contains($slug, 'freshener')) {
+                $images = [
+                    '/images/products/rose-air-freshener/air-freshener-1.png',
+                    '/images/products/rose-air-freshener/air-freshener-2.png',
+                ];
+            }
+        }
+
+        // Final fallback if no images found
         if (empty($images)) {
             $images = [
-                'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=85',
-                'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800&q=85',
+                '/logo.png',
             ];
         }
 

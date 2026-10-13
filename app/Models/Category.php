@@ -14,8 +14,11 @@ class Category extends Model
         'name',
         'subtitle',
         'image',
+        'image_media_id',
         'sort_order',
         'is_active',
+        'seo_title',
+        'seo_description',
     ];
 
     protected $casts = [
@@ -26,5 +29,10 @@ class Category extends Model
     public function products()
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function imageMedia()
+    {
+        return $this->belongsTo(Media::class, 'image_media_id');
     }
 }

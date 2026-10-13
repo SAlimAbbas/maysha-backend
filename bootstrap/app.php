@@ -20,8 +20,42 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Trust Cloudflare and reverse proxies so real client IPs (CF-Connecting-IP, X-Forwarded-For) are resolved
-        $middleware->trustProxies(at: '*');
+        // Configure trusted proxies safely (restrict to TRUSTED_PROXIES env or Cloudflare IP ranges)
+        $trustedProxies = env('TRUSTED_PROXIES');
+        $cloudflareRanges = [
+            '173.245.48.0/20',
+            '103.21.244.0/22',
+            '103.22.200.0/22',
+            '103.31.4.0/22',
+            '141.101.64.0/18',
+            '108.162.192.0/18',
+            '190.93.240.0/20',
+            '188.114.96.0/20',
+            '197.234.240.0/22',
+            '198.41.128.0/17',
+            '162.158.0.0/15',
+            '104.16.0.0/13',
+            '104.24.0.0/14',
+            '172.64.0.0/13',
+            '131.0.72.0/22',
+            '2400:cb00::/32',
+            '2606:4700::/32',
+            '2803:f800::/32',
+            '2405:b500::/32',
+            '2405:8100::/32',
+            '2a06:98c0::/29',
+            '2c0f:f248::/32',
+        ];
+
+        if ($trustedProxies === 'cloudflare') {
+            $middleware->trustProxies(at: $cloudflareRanges);
+        } elseif ($trustedProxies === '*' && app()->isLocal()) {
+            $middleware->trustProxies(at: '*');
+        } elseif (! empty($trustedProxies)) {
+            $middleware->trustProxies(at: array_map('trim', explode(',', $trustedProxies)));
+        } else {
+            $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+        }
 
         // Security headers across all responses
         $middleware->append(SecurityHeaders::class);

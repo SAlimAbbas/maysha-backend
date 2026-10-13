@@ -22,15 +22,20 @@ class Product extends Model
         'ingredients',
         'usage_instructions',
         'skin_types',
+        'hsn_code',
+        'gst_rate',
         'is_featured',
         'is_active',
         'rating_avg',
         'review_count',
+        'seo_title',
+        'seo_description',
     ];
 
     protected $casts = [
         'key_benefits' => 'array',
         'skin_types' => 'array',
+        'gst_rate' => 'integer',
         'is_featured' => 'boolean',
         'is_active' => 'boolean',
         'rating_avg' => 'float',
@@ -55,6 +60,11 @@ class Product extends Model
     public function reviews()
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
     }
 
     public function media()

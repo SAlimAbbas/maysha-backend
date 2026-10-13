@@ -13,6 +13,7 @@ class Concern extends Model
         'slug',
         'name',
         'image',
+        'image_media_id',
         'description',
         'sort_order',
         'is_active',
@@ -26,5 +27,10 @@ class Concern extends Model
     public function products()
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function imageMedia()
+    {
+        return $this->belongsTo(Media::class, 'image_media_id');
     }
 }

@@ -16,6 +16,7 @@ class Review extends Model
         'rating',
         'title',
         'comment',
+        'images',
         'is_verified',
         'is_approved',
         'helpful_count',
@@ -23,6 +24,7 @@ class Review extends Model
 
     protected $casts = [
         'rating' => 'integer',
+        'images' => 'array',
         'is_verified' => 'boolean',
         'is_approved' => 'boolean',
         'helpful_count' => 'integer',
@@ -36,6 +38,11 @@ class Review extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function helpfulVotes()
+    {
+        return $this->hasMany(ReviewHelpfulVote::class);
     }
 
     public function scopeApproved($query)

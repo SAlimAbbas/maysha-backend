@@ -19,7 +19,7 @@ return [
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization', 'X-XSRF-TOKEN', 'Idempotency-Key', 'Accept'],
+    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization', 'X-XSRF-TOKEN', 'Idempotency-Key', 'Accept', 'X-Cart-Token'],
 
     'exposed_headers' => ['Idempotency-Key'],
 

@@ -16,6 +16,7 @@ class ProductVariant extends Model
         'price_paise',
         'mrp_paise',
         'stock',
+        'low_stock_threshold',
         'is_active',
     ];
 
@@ -23,6 +24,7 @@ class ProductVariant extends Model
         'price_paise' => 'integer',
         'mrp_paise' => 'integer',
         'stock' => 'integer',
+        'low_stock_threshold' => 'integer',
         'is_active' => 'boolean',
     ];
 

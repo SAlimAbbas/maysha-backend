@@ -32,5 +32,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="RAZORPAY_KEY_ID" value="rzp_test_key_for_tests"/>
+        <env name="RAZORPAY_KEY_SECRET" value="rzp_test_secret_for_tests"/>
     </php>
 </phpunit>

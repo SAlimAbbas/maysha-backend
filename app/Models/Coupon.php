@@ -17,6 +17,7 @@ class Coupon extends Model
         'max_discount_paise',
         'usage_limit',
         'per_user_limit',
+        'first_order_only',
         'starts_at',
         'ends_at',
         'is_active',
@@ -28,6 +29,7 @@ class Coupon extends Model
         'max_discount_paise' => 'integer',
         'usage_limit' => 'integer',
         'per_user_limit' => 'integer',
+        'first_order_only' => 'boolean',
         'is_active' => 'boolean',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
@@ -58,6 +60,13 @@ class Coupon extends Model
 
         if ($subtotalPaise < $this->min_subtotal_paise) {
             return false;
+        }
+
+        // First order only check
+        if ($this->first_order_only && $user) {
+            if ($user->orders()->whereIn('status', ['paid', 'processing', 'shipped', 'delivered'])->exists()) {
+                return false;
+            }
         }
 
         // Global usage limit check

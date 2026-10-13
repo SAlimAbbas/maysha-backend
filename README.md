@@ -42,7 +42,10 @@ Production backend for the **Maysha** clean, science-backed skincare ecommerce p
 ### 2.2 Catalog & Storefront (`/api/v1`)
 | Method | Endpoint | Description | Rate Limit |
 |---|---|---|---|
-| `GET` | `/store-info` | Store configuration (free shipping threshold ₹999, shipping fee ₹99) | 120 / min |
+| `GET` | `/store-info` | Dynamic store configuration from `site_settings` (threshold ₹999, fee ₹99, COD flags) | 120 / min |
+| `GET` | `/home` | Aggregate homepage data (banners, categories, concerns, bestsellers, new launches, reviews) | 120 / min |
+| `GET` | `/sitemap/slugs` | Slugs list for static generation & SEO sitemap | 120 / min |
+| `GET` | `/shipping/pincode/{pin}` | Real-time Indian pincode delivery serviceability & COD check (cached) | 120 / min |
 | `GET` | `/products` | Filterable catalog (`category`, `concern`, `min_price`, `max_price`, `sort`, `q`) | 120 / min |
 | `GET` | `/products/bestsellers` | Curated top-performing formulations | 120 / min |
 | `GET` | `/products/new` | Latest product launches | 120 / min |
@@ -53,34 +56,48 @@ Production backend for the **Maysha** clean, science-backed skincare ecommerce p
 | `GET` | `/banners` | Active homepage carousel banners (max 7 active rule) | 120 / min |
 | `GET` | `/reviews` | Public approved product reviews | 120 / min |
 | `POST` | `/reviews` | Submit product review (requires verified email & purchase check) | 3 / hr / user |
+| `POST` | `/reviews/{id}/helpful` | Upvote helpful review (prevents duplicate voting by user/IP) | 60 / min |
 
-### 2.3 Cart & Checkout (`/api/v1`)
+### 2.3 Customer Account (`/api/v1/account/*` — Requires Sanctum auth)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/account/addresses` | List customer shipping addresses |
+| `POST` | `/account/addresses` | Create new shipping address |
+| `PUT` | `/account/addresses/{id}` | Update address (default toggle handling) |
+| `DELETE` | `/account/addresses/{id}` | Remove address |
+| `GET` | `/account/wishlist` | View saved wishlist products |
+| `POST` | `/account/wishlist/{productId}` | Save product to wishlist |
+| `DELETE` | `/account/wishlist/{productId}` | Remove product from wishlist |
+| `GET` | `/account/orders` | Customer order history |
+| `GET` | `/account/orders/{reference}` | Order detail with timeline events & invoice data |
+
+### 2.4 Cart & Checkout (`/api/v1`)
 | Method | Endpoint | Description | Rate Limit |
 |---|---|---|---|
 | `GET` | `/cart` | Fetch guest (via cookie token) or authenticated user cart | 60 / min |
 | `POST` | `/cart/items` | Add variant to cart (server checks real-time inventory) | 60 / min |
 | `PUT` | `/cart/items/{id}` | Update item quantity | 60 / min |
 | `DELETE` | `/cart/items/{id}` | Remove line item | 60 / min |
-| `POST` | `/cart/coupon` | Apply coupon code (e.g. `WELCOME10`, `MAYSHA10`) | 10 / min |
+| `POST` | `/cart/coupon` | Apply coupon code (e.g. `WELCOME10`, `MAYSHA10`, first-order-only validation) | 10 / min |
 | `DELETE` | `/cart/coupon` | Remove applied coupon | 10 / min |
 | `POST` | `/checkout/quote` | Validate address and calculate shipping + order totals | 10 / hr |
 | `POST` | `/orders` | Transactional order placement with `Idempotency-Key` header & row-locking | 10 / hr |
 | `GET` | `/orders/{reference}` | Get order details (IDOR-protected: owner or matching guest email) | 60 / min |
 
-### 2.4 Payments (`/api/v1/payments/razorpay`)
+### 2.5 Payments (`/api/v1/payments/razorpay`)
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/create-order` | Generate Razorpay order ID server-side |
 | `POST` | `/verify` | Verify payment signature (HMAC SHA-256) and mark order paid |
 | `POST` | `/webhook` | Razorpay webhook listener (`payment.captured`, `payment.failed`) with idempotency |
 
-### 2.5 Newsletter & Customer Inquiries (`/api/v1`)
+### 2.6 Newsletter & Customer Inquiries (`/api/v1`)
 | Method | Endpoint | Description | Rate Limit |
 |---|---|---|---|
 | `POST` | `/newsletter` | Subscribe to journal with invisible honeypot trap | 3 / hr / IP |
 | `POST` | `/contact` | Submit skincare consultation message (sanitized HTML, honeypot) | 3 / hr / IP |
 
-### 2.6 Admin Portal (`/api/v1/admin/*` — Requires `role: admin` & Sanctum auth)
+### 2.7 Admin Portal (`/api/v1/admin/*` — Requires `role: admin` & Sanctum auth)
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/admin/dashboard/stats` | Aggregate metrics (revenue, orders count, pending orders, low stock alerts, recent audits) |
@@ -91,7 +108,7 @@ Production backend for the **Maysha** clean, science-backed skincare ecommerce p
 | `DELETE` | `/admin/products/{id}` | Soft-delete product (audited) |
 | `GET` | `/admin/orders` | View orders list with status filter |
 | `PUT/PATCH` | `/admin/orders/{id}/status` | Update fulfillment status; automatically restores inventory if cancelled/refunded |
-| `POST` | `/admin/orders/{id}/refund` | Refund order and return items to inventory (audited) |
+| `POST` | `/admin/orders/{id}/refund` | Refund order via Razorpay / manual and track in `refunds` table |
 | `GET` | `/admin/reviews` | List reviews with approval filter |
 | `PUT/PATCH` | `/admin/reviews/{id}/approve` | Approve review and automatically recalculate product rating average & review count |
 | `DELETE` | `/admin/reviews/{id}` | Remove review and recalculate product ratings |
@@ -115,79 +132,49 @@ Production backend for the **Maysha** clean, science-backed skincare ecommerce p
 6. **Defense Against Bots:** Honeypot fields (`website`, `bot_trap`) on public newsletter and contact forms silently discard automated bots.
 7. **Strict Rate Limiting:** Named Redis-backed limiters protect every sensitive endpoint group (`auth-login`, `auth-register`, `coupon`, `checkout`, `media-sign`, etc.).
 8. **Security Headers Middleware:** Out-of-the-box `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`.
+9. **Reverse Proxy Protection:** `trustProxies` validates against `TRUSTED_PROXIES` environment configuration and Cloudflare IP ranges, preventing spoofed `X-Forwarded-For` rate-limit bypasses.
 
 ---
 
-## 4. Setup & Installation
+## 4. Setup & First-Run Guide
 
-### 4.1 Prerequisites
-- PHP 8.2 or higher with `pdo_mysql`, `bcmath`, `curl`, `mbstring`, `fileinfo`
-- MySQL 8.0+
-- Composer 2.x
-- Redis server (recommended for caching & queue workers)
+### 4.1 Environments
+- `.env.example`: Configured for immediate local development with `APP_ENV=local`, `APP_DEBUG=true`, `CACHE_STORE=file`, `SESSION_DRIVER=file`, and `QUEUE_CONNECTION=sync`. No Redis or external services required to start development.
+- `.env.production.example`: Production-hardened configuration using MySQL, dual Redis connections (LRU cache vs persistent queue/session/carts), `APP_DEBUG=false`, and Cloudflare proxy security.
 
-### 4.2 Installation
+### 4.2 First Run Step-by-Step
 ```bash
-# Clone the repository
-git clone https://github.com/syedalimabbas/maysha-backend.git
-cd maysha-backend
-
-# Install PHP dependencies
+# 1. Install dependencies
 composer install
 
-# Environment configuration
+# 2. Copy local environment template and generate application key
 cp .env.example .env
 php artisan key:generate
-```
 
-### 4.3 Configure `.env`
-Update `.env` with your database and service credentials:
-```ini
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=maysha_db
-DB_USERNAME=root
-DB_PASSWORD=
+# 3. Run all database migrations (including additive e-commerce migrations)
+php artisan migrate --force
 
-FRONTEND_URL=http://localhost:3000
-SANCTUM_STATEFUL_DOMAINS=localhost:3000,127.0.0.1:3000
-
-RAZORPAY_KEY_ID=rzp_test_yourkey
-RAZORPAY_KEY_SECRET=your_secret
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
-
-CLOUDFLARE_ACCOUNT_ID=your_cf_account
-CLOUDFLARE_API_TOKEN=your_cf_token
-CLOUDFLARE_IMAGES_DELIVERY_URL=https://imagedelivery.net/your_hash
-```
-
-### 4.4 Run Migrations & Seeders
-```bash
-# Run database migrations
-php artisan migrate
-
-# Seed catalog, categories, concerns, sample products, variants, and reviews
+# 4. Seed system roles, permissions, baseline store settings, and demo catalog (local only)
 php artisan db:seed
 
-# Seed the initial administrator account
+# 5. Provision the primary system administrator account
 php artisan maysha:seed-admin --email="admin@maysha.com" --password="YourSecureAdminPassword123!"
-```
 
-### 4.5 Start Development Server
-```bash
-php artisan serve --port=8000
+# 6. Create the public storage symlink
+php artisan storage:link
+
+# 7. Run system diagnostics health check
+php artisan maysha:doctor
 ```
-API root: `http://127.0.0.1:8000/api/v1`
 
 ---
 
 ## 5. Testing & Code Quality
 
-The backend features an automated test suite covering authentication, IDOR prevention, cart calculations, idempotency, Razorpay verification, Cloudflare media flows, and administrative moderation:
+The backend features an automated test suite (52 tests, 626 assertions) covering authentication, IDOR prevention, cart calculations, idempotency, Razorpay verification, Cloudflare media flows, and administrative moderation:
 
 ```bash
-# Run full PHPUnit test suite (41 tests, 464 assertions)
+# Run full PHPUnit test suite (52 tests, 626 assertions)
 php artisan test
 
 # Run code style formatting (Laravel Pint)

@@ -20,6 +20,7 @@ class ReviewResource extends JsonResource
             'isVerified' => (bool) $this->is_verified,
             'title' => $this->title ?? '',
             'comment' => $this->comment,
+            'images' => $this->images ?? [],
             'productId' => (string) $this->product_id,
             'productName' => $this->product?->name ?? '',
             'helpfulCount' => (int) $this->helpful_count,
