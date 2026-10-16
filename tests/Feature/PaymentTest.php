@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use Database\Seeders\CatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class PaymentTest extends TestCase
@@ -16,6 +17,16 @@ class PaymentTest extends TestCase
     {
         parent::setUp();
         $this->seed(CatalogSeeder::class);
+
+        Http::fake([
+            'https://api.razorpay.com/*' => Http::response([
+                'id' => 'order_fake_test_12345',
+                'entity' => 'order',
+                'amount' => 39900,
+                'currency' => 'INR',
+                'status' => 'created',
+            ], 200),
+        ]);
     }
 
     public function test_can_create_razorpay_order(): void

@@ -28,6 +28,7 @@ class Order extends Model
         'shipping_address',
         'payment_method',
         'notes',
+        'reserved_until',
         'tracking_no',
         'courier',
         'placed_at',
@@ -43,6 +44,7 @@ class Order extends Model
         'tax_paise' => 'integer',
         'total_paise' => 'integer',
         'shipping_address' => 'array',
+        'reserved_until' => 'datetime',
         'placed_at' => 'datetime',
         'paid_at' => 'datetime',
         'shipped_at' => 'datetime',
@@ -94,6 +96,11 @@ class Order extends Model
         return (int) round($this->total_paise / 100);
     }
 
+    public function getTaxRupeesAttribute(): int
+    {
+        return (int) round(($this->tax_paise ?? 0) / 100);
+    }
+
     /**
      * Generate unique reference: MAY-XXXXXX
      */
@@ -104,5 +111,27 @@ class Order extends Model
         } while (self::where('reference', $ref)->exists());
 
         return $ref;
+    }
+
+    /**
+     * Generate unique fiscal-year invoice number: INV/YY-YY/XXXXX
+     */
+    public static function generateInvoiceNo(): string
+    {
+        $currentMonth = (int) date('n');
+        $currentYear = (int) date('y');
+        if ($currentMonth >= 4) {
+            $fy = sprintf('%02d-%02d', $currentYear, $currentYear + 1);
+        } else {
+            $fy = sprintf('%02d-%02d', $currentYear - 1, $currentYear);
+        }
+
+        $count = self::whereNotNull('invoice_no')->where('invoice_no', 'like', "INV/{$fy}/%")->count() + 1;
+        do {
+            $invoiceNo = sprintf('INV/%s/%05d', $fy, $count);
+            $count++;
+        } while (self::where('invoice_no', $invoiceNo)->exists());
+
+        return $invoiceNo;
     }
 }

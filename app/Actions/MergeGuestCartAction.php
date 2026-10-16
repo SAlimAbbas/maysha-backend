@@ -20,13 +20,17 @@ class MergeGuestCartAction
 
         if ($guestCart) {
             foreach ($guestCart->items as $guestItem) {
+                $variant = $guestItem->variant;
+                $maxStock = $variant ? min(10, (int) $variant->stock) : 10;
                 $existingItem = $userCart->items()->where('variant_id', $guestItem->variant_id)->first();
                 if ($existingItem) {
-                    $existingItem->increment('quantity', $guestItem->quantity);
+                    $newQty = min($maxStock, $existingItem->quantity + $guestItem->quantity);
+                    $existingItem->update(['quantity' => $newQty]);
                 } else {
+                    $qty = min($maxStock, $guestItem->quantity);
                     $userCart->items()->create([
                         'variant_id' => $guestItem->variant_id,
-                        'quantity' => $guestItem->quantity,
+                        'quantity' => max(1, $qty),
                     ]);
                 }
             }

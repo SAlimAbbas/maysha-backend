@@ -42,8 +42,12 @@ class ProductController extends Controller
 
         // Filter: Concern
         if ($request->filled('concern')) {
-            $conSlug = $request->input('concern');
-            $query->whereHas('concern', fn ($q) => $q->where('slug', $conSlug));
+            $conSlug = trim((string) $request->input('concern'));
+            $query->whereHas('concern', function ($q) use ($conSlug) {
+                $q->where('slug', $conSlug)
+                    ->orWhere('slug', 'LIKE', "{$conSlug}-%")
+                    ->orWhere('slug', 'LIKE', "%{$conSlug}%");
+            });
         }
 
         // Filter: Min Price (rupees converted to paise)
@@ -147,31 +151,35 @@ class ProductController extends Controller
         }
         $categoriesFacet = array_values($catCounts);
 
-        // 2. Dynamic Key Benefits facet
-        $benefitsCount = [];
-        foreach ($allActive as $p) {
-            $benefits = is_array($p->key_benefits) ? $p->key_benefits : [];
-            foreach ($benefits as $b) {
-                $clean = trim((string) $b);
-                if (!empty($clean)) {
-                    $benefitsCount[$clean] = ($benefitsCount[$clean] ?? 0) + 1;
-                }
-            }
-        }
-        arsort($benefitsCount);
-        $benefitsFacet = [];
-        foreach ($benefitsCount as $name => $count) {
-            $benefitsFacet[] = ['name' => $name, 'count' => $count];
-        }
+        // 2. Dynamic Skin / Target Types facet (Normalized canonical labels)
+        $canonicalMap = [
+            'sensitive skin' => 'Sensitive',
+            'sensitive' => 'Sensitive',
+            'oily skin' => 'Oily',
+            'oily' => 'Oily',
+            'dry skin' => 'Dry',
+            'dry' => 'Dry',
+            'combination skin' => 'Combination',
+            'combination' => 'Combination',
+            'all skin types' => 'All Skin Types',
+            'all' => 'All Skin Types',
+            'normal skin' => 'Normal',
+            'normal' => 'Normal',
+            'acne-prone skin' => 'Acne-Prone',
+            'acne prone' => 'Acne-Prone',
+            'acne-prone' => 'Acne-Prone',
+        ];
 
-        // 3. Dynamic Skin / Target Types facet
         $skinTypesCount = [];
         foreach ($allActive as $p) {
             $types = is_array($p->skin_types) ? $p->skin_types : [];
+            $seen = [];
             foreach ($types as $st) {
-                $clean = trim((string) $st);
-                if (!empty($clean)) {
-                    $skinTypesCount[$clean] = ($skinTypesCount[$clean] ?? 0) + 1;
+                $clean = strtolower(trim((string) $st));
+                $canonical = $canonicalMap[$clean] ?? ucfirst($clean);
+                if (!empty($canonical) && !isset($seen[$canonical])) {
+                    $seen[$canonical] = true;
+                    $skinTypesCount[$canonical] = ($skinTypesCount[$canonical] ?? 0) + 1;
                 }
             }
         }
@@ -181,7 +189,7 @@ class ProductController extends Controller
             $skinTypesFacet[] = ['name' => $name, 'count' => $count];
         }
 
-        // 4. Min & Max price in catalog
+        // 3. Min & Max price in catalog
         $minPrice = 999999;
         $maxPrice = 0;
         foreach ($allActive as $p) {
@@ -196,7 +204,6 @@ class ProductController extends Controller
 
         $facets = [
             'categories' => $categoriesFacet,
-            'benefits' => array_slice($benefitsFacet, 0, 10),
             'skinTypes' => array_slice($skinTypesFacet, 0, 8),
             'priceRange' => [
                 'min' => $minPrice,

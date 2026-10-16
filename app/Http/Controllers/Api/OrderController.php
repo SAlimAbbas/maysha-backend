@@ -9,7 +9,9 @@ use App\Http\Traits\ApiResponse;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Order;
+use App\Models\Pincode;
 use App\Models\ProductVariant;
+use App\Models\SiteSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,47 +29,77 @@ class OrderController extends Controller
     /**
      * Compute checkout quote with verified shipping and taxes.
      */
-    public function quote(Request $request): JsonResponse
-    {
-        $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.variant_id' => 'required|exists:product_variants,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'coupon_code' => 'nullable|string',
-            'pincode' => 'nullable|string|max:10',
-        ]);
+    /**
+     * Compute checkout quote with verified shipping, taxes, and COD availability.
+     */
+     public function quote(Request $request): JsonResponse
+     {
+         $request->validate([
+             'items' => 'required|array|min:1',
+             'items.*.variant_id' => 'required|exists:product_variants,id',
+             'items.*.quantity' => 'required|integer|min:1',
+             'coupon_code' => 'nullable|string',
+             'pincode' => 'nullable|string|max:10',
+         ]);
 
-        $subtotalPaise = 0;
-        foreach ($request->input('items') as $item) {
-            $variant = ProductVariant::find($item['variant_id']);
-            if ($variant) {
-                $subtotalPaise += $variant->price_paise * (int) $item['quantity'];
-            }
-        }
+         $user = $request->user('sanctum') ?? $request->user();
 
-        $discountPaise = 0;
-        $couponCode = $request->input('coupon_code');
-        if ($couponCode) {
-            $coupon = Coupon::where('code', strtoupper(trim($couponCode)))->first();
-            if ($coupon && $coupon->isValidFor($subtotalPaise, $request->user())) {
-                $discountPaise = $coupon->calculateDiscountPaise($subtotalPaise);
-            }
-        }
+         $subtotalPaise = 0;
+         foreach ($request->input('items') as $item) {
+             $variant = ProductVariant::find($item['variant_id']);
+             if ($variant) {
+                 $subtotalPaise += $variant->price_paise * (int) $item['quantity'];
+             }
+         }
 
-        $thresholdPaise = (int) env('FREE_SHIPPING_THRESHOLD', 999) * 100;
-        $shippingFeePaise = (int) env('SHIPPING_FEE', 99) * 100;
-        $shippingPaise = ($subtotalPaise >= $thresholdPaise || $subtotalPaise === 0) ? 0 : $shippingFeePaise;
-        $totalPaise = max(0, $subtotalPaise - $discountPaise + $shippingPaise);
+         $discountPaise = 0;
+         $couponCode = $request->input('coupon_code');
+         if ($couponCode) {
+             $coupon = Coupon::where('code', strtoupper(trim($couponCode)))->first();
+             if ($coupon && $coupon->isValidFor($subtotalPaise, $user)) {
+                 $discountPaise = $coupon->calculateDiscountPaise($subtotalPaise);
+             }
+         }
 
-        return $this->success([
-            'subtotal' => (int) round($subtotalPaise / 100),
-            'discount' => (int) round($discountPaise / 100),
-            'shipping' => (int) round($shippingPaise / 100),
-            'total' => (int) round($totalPaise / 100),
-            'currency' => 'INR',
-            'freeShippingQualified' => $subtotalPaise >= $thresholdPaise,
-        ], 'Checkout quote computed.');
-    }
+         $thresholdPaise = (int) SiteSetting::get('free_shipping_threshold', env('FREE_SHIPPING_THRESHOLD', 999)) * 100;
+         $shippingFeePaise = (int) SiteSetting::get('shipping_fee', env('SHIPPING_FEE', 99)) * 100;
+         $shippingPaise = ($subtotalPaise >= $thresholdPaise || $subtotalPaise === 0) ? 0 : $shippingFeePaise;
+         $totalPaise = max(0, $subtotalPaise - $discountPaise + $shippingPaise);
+
+         // COD Availability Heuristic
+         $codEnabled = (bool) SiteSetting::get('cod_enabled', true);
+         $codMaxRupees = (int) SiteSetting::get('cod_max_rupees', 5000);
+         $codAvailable = $codEnabled && ($totalPaise <= $codMaxRupees * 100);
+         $codReason = null;
+
+         if (! $codEnabled) {
+             $codReason = 'Cash on Delivery is currently disabled.';
+         } elseif ($totalPaise > ($codMaxRupees * 100)) {
+             $codReason = 'Cash on Delivery is only available for orders up to ₹'.number_format($codMaxRupees);
+         } elseif ($request->filled('pincode')) {
+             $pin = trim($request->input('pincode'));
+             $pincodeRecord = Pincode::where('pincode', $pin)->first();
+             if ($pincodeRecord && ! $pincodeRecord->cod_available) {
+                 $codAvailable = false;
+                 $codReason = "Cash on Delivery is not available for pincode {$pin}.";
+             }
+         }
+
+         $taxPaise = (int) round($subtotalPaise * (18 / 118)); // 18% inclusive GST estimate
+
+         return $this->success([
+             'subtotal' => (int) round($subtotalPaise / 100),
+             'discount' => (int) round($discountPaise / 100),
+             'shipping' => (int) round($shippingPaise / 100),
+             'tax' => (int) round($taxPaise / 100),
+             'total' => (int) round($totalPaise / 100),
+             'currency' => 'INR',
+             'freeShippingQualified' => $subtotalPaise >= $thresholdPaise,
+             'codAvailable' => $codAvailable,
+             'codMaxRupees' => $codMaxRupees,
+             'codReason' => $codReason,
+         ], 'Checkout quote computed.');
+     }
 
     /**
      * Place an order with transactional stock locking and idempotency protection.
@@ -84,7 +116,7 @@ class OrderController extends Controller
             'shipping_address.line1' => 'required|string|max:255',
             'shipping_address.city' => 'required|string|max:100',
             'shipping_address.state' => 'required|string|max:100',
-            'shipping_address.pincode' => 'required|string|max:10',
+            'shipping_address.pincode' => ['required', 'string', 'regex:/^[1-9][0-9]{5}$/'],
             'payment_method' => 'required|in:razorpay,cod',
             'coupon_code' => 'nullable|string|max:50',
             'guest_email' => 'nullable|email|max:255',
@@ -92,9 +124,9 @@ class OrderController extends Controller
         ]);
 
         $idempotencyKey = $request->header('Idempotency-Key');
-        $user = $request->user();
+        $user = $request->user('sanctum') ?? $request->user();
 
-        // Guest email is required if not logged in
+        // Guest email is required only if not logged in
         if (! $user && ! $request->filled('guest_email')) {
             return $this->error('A valid guest email address is required for checkout.', 422, [
                 'guest_email' => ['Guest email is required when not logged in.'],
@@ -113,7 +145,7 @@ class OrderController extends Controller
             couponCode: $request->input('coupon_code'),
             idempotencyKey: $idempotencyKey,
             user: $user,
-            guestEmail: $request->input('guest_email'),
+            guestEmail: $request->input('guest_email') ?: $user?->email,
             guestPhone: $request->input('shipping_address.phone'),
             cartToClear: $cartToClear
         );
@@ -122,7 +154,7 @@ class OrderController extends Controller
         $message = $order->wasRecentlyCreated ? 'Order created successfully.' : 'Order retrieved successfully (idempotent duplicate request).';
 
         return $this->success(
-            new OrderResource($order),
+            new OrderResource($order->load(['items', 'events'])),
             $message,
             [],
             $statusCode
@@ -134,13 +166,13 @@ class OrderController extends Controller
      */
     public function show(Request $request, string $reference): JsonResponse
     {
-        $order = Order::where('reference', $reference)->with('items')->first();
+        $order = Order::where('reference', $reference)->with(['items', 'events', 'payments'])->first();
 
         if (! $order) {
             return $this->error('Order not found.', 404);
         }
 
-        $user = $request->user();
+        $user = $request->user('sanctum') ?? $request->user();
 
         // IDOR Protection: Check owner or admin
         $isAuthorized = false;
@@ -165,5 +197,70 @@ class OrderController extends Controller
             new OrderResource($order),
             'Order details retrieved successfully.'
         );
+    }
+
+    /**
+     * Generate / Retrieve GST compliant tax invoice.
+     */
+    public function invoice(Request $request, string $reference): JsonResponse
+    {
+        $order = Order::where('reference', $reference)->with(['items.variant.product', 'events'])->first();
+
+        if (! $order) {
+            return $this->error('Order not found.', 404);
+        }
+
+        $user = $request->user('sanctum') ?? $request->user();
+        $isAuthorized = false;
+
+        if ($user) {
+            if ($order->user_id === $user->id || $user->isAdmin()) {
+                $isAuthorized = true;
+            }
+        } else {
+            $queryEmail = strtolower((string) $request->input('email'));
+            if ($queryEmail && strtolower((string) $order->guest_email) === $queryEmail) {
+                $isAuthorized = true;
+            }
+        }
+
+        if (! $isAuthorized) {
+            return $this->error('Access denied. You do not have permission to view this invoice.', 403);
+        }
+
+        if (! $order->invoice_no) {
+            $order->update(['invoice_no' => Order::generateInvoiceNo()]);
+        }
+
+        return $this->success([
+            'invoiceNo' => $order->invoice_no,
+            'orderReference' => $order->reference,
+            'status' => $order->status,
+            'placedAt' => $order->placed_at?->toIso8601String() ?? $order->created_at->toIso8601String(),
+            'customer' => [
+                'name' => $order->shipping_address['name'] ?? 'Customer',
+                'email' => $order->guest_email ?: $user?->email,
+                'phone' => $order->guest_phone ?: ($order->shipping_address['phone'] ?? null),
+                'address' => $order->shipping_address,
+            ],
+            'gstin' => SiteSetting::get('gstin', '29ABCDE1234F1Z5'),
+            'financialYear' => '2026-2027',
+            'items' => $order->items->map(fn ($item) => [
+                'name' => $item->product_name,
+                'size' => $item->size_label,
+                'hsn' => $item->variant?->product?->hsn_code ?? '33049990',
+                'gstRate' => $item->variant?->product?->gst_rate ?? 18,
+                'quantity' => $item->quantity,
+                'unitPrice' => $item->unit_price_rupees,
+                'total' => $item->total_rupees,
+            ]),
+            'pricing' => [
+                'subtotal' => $order->subtotal_rupees,
+                'discount' => $order->discount_rupees,
+                'shipping' => $order->shipping_rupees,
+                'tax' => $order->tax_rupees,
+                'total' => $order->total_rupees,
+            ],
+        ], 'Invoice data retrieved successfully.');
     }
 }

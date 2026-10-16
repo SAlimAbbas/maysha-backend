@@ -11,6 +11,7 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Http\Traits\ApiResponse;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Events\Registered;
@@ -50,7 +51,8 @@ class AuthController extends Controller
             ['source' => 'account_registration', 'is_active' => true]
         );
 
-        if ($guestToken = $request->header('X-Cart-Token')) {
+        $guestToken = $request->header('X-Cart-Token') ?: $request->input('cart_token') ?: $request->cookie('maysha_cart_token');
+        if ($guestToken) {
             app(\App\Actions\MergeGuestCartAction::class)->execute($guestToken, $user);
         }
 
@@ -81,9 +83,27 @@ class AuthController extends Controller
             return $this->error('Invalid credentials provided.', 401);
         }
 
+        // Enforce 2FA security PIN for administrator accounts when 2FA is active
+        if ($user->role === 'admin') {
+            $is2FaEnabled = filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN);
+            if ($is2FaEnabled) {
+                $configuredPin = (string) SiteSetting::get('admin_2fa_pin', '9281');
+                $providedPin = (string) ($request->input('two_factor_pin') ?? $request->input('pin') ?? '');
+
+                if ($providedPin === '') {
+                    return $this->error('Two-Factor Authentication PIN is required for administrator login.', 422);
+                }
+
+                if (! hash_equals($configuredPin, $providedPin)) {
+                    return $this->error('Invalid 2FA security PIN. Administrative access denied.', 422);
+                }
+            }
+        }
+
         $user->update(['last_login_at' => now()]);
 
-        if ($guestToken = $request->header('X-Cart-Token')) {
+        $guestToken = $request->header('X-Cart-Token') ?: $request->input('cart_token') ?: $request->cookie('maysha_cart_token');
+        if ($guestToken) {
             app(\App\Actions\MergeGuestCartAction::class)->execute($guestToken, $user);
         }
 
@@ -295,6 +315,10 @@ class AuthController extends Controller
                     'password' => null,
                 ]);
             }
+        }
+
+        if ($user->role === 'admin' && filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
+            return redirect()->away("{$frontendUrl}/admin?error=".urlencode('Two-Factor PIN authentication is required for administrator accounts.'));
         }
 
         $user->update(['last_login_at' => now()]);

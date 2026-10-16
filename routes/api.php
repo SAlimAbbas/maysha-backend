@@ -118,9 +118,9 @@ Route::prefix('v1')->group(function () {
     });
 
     // ----------------------------------------------------------------------
-    // Cart & Checkout
+    // Cart & Checkout (Optional Sanctum Auth for Logged-In / Guest)
     // ----------------------------------------------------------------------
-    Route::middleware('throttle:cart')->group(function () {
+    Route::middleware(['optional.sanctum', 'throttle:cart'])->group(function () {
         Route::get('/cart', [CartController::class, 'getCart']);
         Route::post('/cart/items', [CartController::class, 'addItem']);
         Route::put('/cart/items/{id}', [CartController::class, 'updateItem']);
@@ -129,10 +129,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->middleware('throttle:coupon');
     });
 
-    // Orders & Checkout Quote
-    Route::post('/checkout/quote', [OrderController::class, 'quote'])->middleware('throttle:checkout');
-    Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:checkout');
-    Route::get('/orders/{reference}', [OrderController::class, 'show']);
+    // Orders & Checkout Quote (Optional Sanctum Auth for Logged-In / Guest)
+    Route::middleware('optional.sanctum')->group(function () {
+        Route::post('/checkout/quote', [OrderController::class, 'quote'])->middleware('throttle:checkout');
+        Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:checkout');
+        Route::get('/orders/{reference}', [OrderController::class, 'show']);
+        Route::get('/orders/{reference}/invoice', [OrderController::class, 'invoice']);
+    });
 
     // Payments (Razorpay)
     Route::prefix('payments/razorpay')->group(function () {

@@ -76,7 +76,24 @@ class PaymentController extends Controller
                 'verified_at' => now(),
             ]);
 
-            $payment->order->update(['status' => 'paid']);
+            $order = $payment->order;
+            if ($order) {
+                $orderUpdates = [
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'reserved_until' => null,
+                ];
+                if (! $order->invoice_no) {
+                    $orderUpdates['invoice_no'] = Order::generateInvoiceNo();
+                }
+                $order->update($orderUpdates);
+
+                \App\Models\OrderEvent::create([
+                    'order_id' => $order->id,
+                    'status' => 'paid',
+                    'note' => "Payment captured successfully via Razorpay (Payment ID: {$paymentId}).",
+                ]);
+            }
         }
 
         return $this->success(null, 'Payment successfully verified and order marked as paid.');

@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\NewsletterSubscriber;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Services\CatalogCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -61,6 +62,8 @@ class AdminSettingController extends Controller
         foreach ($settings as $key => $val) {
             SiteSetting::set($key, $val);
         }
+
+        CatalogCacheService::flush(['settings', 'home']);
 
         AuditLog::record('settings.updated', null, $request->user(), ['keys' => array_keys($settings)]);
 

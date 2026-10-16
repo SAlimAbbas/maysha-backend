@@ -151,6 +151,13 @@ class DoctorCommand extends Command
         $queueDriver = config('queue.default');
         $this->line("  Cache: <comment>{$cacheDriver}</comment> | Session: <comment>{$sessionDriver}</comment> | Queue: <comment>{$queueDriver}</comment>");
 
+        // CACHE_STORE check: fail loudly if array or null outside testing
+        if (app()->environment() !== 'testing' && in_array($cacheDriver, ['array', 'null'])) {
+            $this->error("  ✗ CACHE_STORE is configured as '{$cacheDriver}'. Rate limiters and cache tags are silently disabled!");
+            $this->warn('    Set CACHE_STORE=file, database, or redis in your .env');
+            $hasError = true;
+        }
+
         $usesRedis = in_array('redis', [$cacheDriver, $sessionDriver, $queueDriver]);
         if ($usesRedis) {
             try {

@@ -20,7 +20,7 @@ class CartController extends Controller
      */
     protected function resolveCart(Request $request): Cart
     {
-        $user = $request->user();
+        $user = $request->user('sanctum') ?? $request->user();
         $token = $request->header('X-Cart-Token') ?: $request->cookie('maysha_cart_token');
 
         if (! $token) {
@@ -35,8 +35,9 @@ class CartController extends Controller
      */
     public function getCart(Request $request): JsonResponse
     {
+        $user = $request->user('sanctum') ?? $request->user();
         $cart = $this->resolveCart($request);
-        $summary = $cart->computeSummary($request->user());
+        $summary = $cart->computeSummary($user);
 
         return $this->success($summary, 'Cart retrieved successfully.', [
             'cartToken' => $cart->token,
@@ -76,7 +77,8 @@ class CartController extends Controller
             ]);
         }
 
-        $summary = $cart->fresh()->computeSummary($request->user());
+        $user = $request->user('sanctum') ?? $request->user();
+        $summary = $cart->fresh()->computeSummary($user);
 
         return $this->success($summary, 'Item added to cart successfully.', [
             'cartToken' => $cart->token,
@@ -93,6 +95,7 @@ class CartController extends Controller
         ]);
 
         $cart = $this->resolveCart($request);
+        $user = $request->user('sanctum') ?? $request->user();
         $quantity = (int) $request->input('quantity');
 
         $item = $cart->items()->where('id', $id)->first();
@@ -109,7 +112,7 @@ class CartController extends Controller
             $item->update(['quantity' => $quantity]);
         }
 
-        $summary = $cart->fresh()->computeSummary($request->user());
+        $summary = $cart->fresh()->computeSummary($user);
 
         return $this->success($summary, 'Cart updated successfully.');
     }
@@ -120,9 +123,10 @@ class CartController extends Controller
     public function removeItem(Request $request, string $id): JsonResponse
     {
         $cart = $this->resolveCart($request);
+        $user = $request->user('sanctum') ?? $request->user();
         $cart->items()->where('id', $id)->delete();
 
-        $summary = $cart->fresh()->computeSummary($request->user());
+        $summary = $cart->fresh()->computeSummary($user);
 
         return $this->success($summary, 'Item removed from cart.');
     }
@@ -137,18 +141,23 @@ class CartController extends Controller
         ]);
 
         $cart = $this->resolveCart($request);
+        $user = $request->user('sanctum') ?? $request->user();
         $code = strtoupper(trim($request->input('code')));
 
         $coupon = Coupon::where('code', $code)->first();
-        $summary = $cart->computeSummary($request->user());
+        $summary = $cart->computeSummary($user);
 
-        if (! $coupon || ! $coupon->isValidFor($summary['subtotalPaise'], $request->user())) {
+        if ($summary['subtotalPaise'] <= 0) {
+            return $this->error('Cannot apply coupon to an empty cart.', 422);
+        }
+
+        if (! $coupon || ! $coupon->isValidFor($summary['subtotalPaise'], $user)) {
             return $this->error('Invalid, expired, or inapplicable coupon code.', 422);
         }
 
         $cart->update(['coupon_id' => $coupon->id]);
 
-        $newSummary = $cart->fresh()->computeSummary($request->user());
+        $newSummary = $cart->fresh()->computeSummary($user);
 
         return $this->success($newSummary, "Coupon '{$coupon->code}' applied successfully!");
     }
@@ -159,9 +168,10 @@ class CartController extends Controller
     public function removeCoupon(Request $request): JsonResponse
     {
         $cart = $this->resolveCart($request);
+        $user = $request->user('sanctum') ?? $request->user();
         $cart->update(['coupon_id' => null]);
 
-        $summary = $cart->fresh()->computeSummary($request->user());
+        $summary = $cart->fresh()->computeSummary($user);
 
         return $this->success($summary, 'Coupon removed successfully.');
     }

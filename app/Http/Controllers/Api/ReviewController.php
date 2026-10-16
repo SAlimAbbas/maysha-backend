@@ -89,7 +89,8 @@ class ReviewController extends Controller
         }
 
         // Sanitize body/title text to prevent XSS
-        $sanitizedComment = strip_tags($validated['comment']);
+        $rawComment = $validated['comment'] ?? $validated['body'] ?? '';
+        $sanitizedComment = strip_tags($rawComment);
         $sanitizedTitle = isset($validated['title']) ? strip_tags($validated['title']) : null;
 
         $review = Review::create([

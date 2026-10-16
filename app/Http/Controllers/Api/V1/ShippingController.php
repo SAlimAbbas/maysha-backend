@@ -27,14 +27,14 @@ class ShippingController extends Controller
             $record = Pincode::where('pincode', $pin)->first();
 
             if (! $record) {
-                // Default heuristic for serviceable pin in major zones if not explicitly in table
                 return [
                     'pincode' => $pin,
-                    'serviceable' => true,
+                    'serviceable' => false,
                     'city' => null,
                     'state' => null,
-                    'codAvailable' => true,
-                    'estimatedDeliveryDays' => 4,
+                    'codAvailable' => false,
+                    'estimatedDeliveryDays' => null,
+                    'message' => 'Delivery is currently not available for this pincode.',
                 ];
             }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -133,6 +134,124 @@ class AuthTest extends TestCase
     {
         $response = $this->postJson('/api/v1/auth/forgot-password', [
             'email' => 'nonexistent@example.com',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+            ]);
+    }
+
+    public function test_admin_cannot_login_without_pin_when_2fa_enabled(): void
+    {
+        SiteSetting::set('admin_2fa_enabled', true);
+        SiteSetting::set('admin_2fa_pin', '9281');
+
+        User::factory()->create([
+            'email' => 'admin@maysha.com',
+            'password' => Hash::make('AdminSecret123!'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@maysha.com',
+            'password' => 'AdminSecret123!',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Two-Factor Authentication PIN is required for administrator login.',
+            ]);
+    }
+
+    public function test_admin_cannot_login_with_wrong_pin_when_2fa_enabled(): void
+    {
+        SiteSetting::set('admin_2fa_enabled', true);
+        SiteSetting::set('admin_2fa_pin', '9281');
+
+        User::factory()->create([
+            'email' => 'admin@maysha.com',
+            'password' => Hash::make('AdminSecret123!'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@maysha.com',
+            'password' => 'AdminSecret123!',
+            'two_factor_pin' => '0000',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Invalid 2FA security PIN. Administrative access denied.',
+            ]);
+    }
+
+    public function test_admin_can_login_with_correct_pin_when_2fa_enabled(): void
+    {
+        SiteSetting::set('admin_2fa_enabled', true);
+        SiteSetting::set('admin_2fa_pin', '9281');
+
+        User::factory()->create([
+            'email' => 'admin@maysha.com',
+            'password' => Hash::make('AdminSecret123!'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@maysha.com',
+            'password' => 'AdminSecret123!',
+            'two_factor_pin' => '9281',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Login successful.',
+            ])
+            ->assertJsonStructure([
+                'data' => ['token', 'user'],
+            ]);
+    }
+
+    public function test_admin_can_login_without_pin_when_2fa_disabled(): void
+    {
+        SiteSetting::set('admin_2fa_enabled', false);
+
+        User::factory()->create([
+            'email' => 'admin@maysha.com',
+            'password' => Hash::make('AdminSecret123!'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@maysha.com',
+            'password' => 'AdminSecret123!',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Login successful.',
+            ]);
+    }
+
+    public function test_customer_can_login_without_pin_even_when_admin_2fa_enabled(): void
+    {
+        SiteSetting::set('admin_2fa_enabled', true);
+        SiteSetting::set('admin_2fa_pin', '9281');
+
+        User::factory()->create([
+            'email' => 'customer@example.com',
+            'password' => Hash::make('CustomerSecret123!'),
+            'role' => 'customer',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'customer@example.com',
+            'password' => 'CustomerSecret123!',
         ]);
 
         $response->assertStatus(200)

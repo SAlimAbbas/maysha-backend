@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderResource;
 use App\Http\Resources\ProductResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Product;
@@ -34,7 +35,7 @@ class AccountController extends Controller
             'line2' => 'nullable|string|max:255',
             'city' => 'required|string|max:100',
             'state' => 'required|string|max:100',
-            'pincode' => 'required|string|max:10',
+            'pincode' => ['required', 'string', 'regex:/^[1-9][0-9]{5}$/'],
             'is_default' => 'nullable|boolean',
         ]);
 
@@ -60,7 +61,7 @@ class AccountController extends Controller
             'line2' => 'nullable|string|max:255',
             'city' => 'sometimes|string|max:100',
             'state' => 'sometimes|string|max:100',
-            'pincode' => 'sometimes|string|max:10',
+            'pincode' => ['sometimes', 'string', 'regex:/^[1-9][0-9]{5}$/'],
             'is_default' => 'nullable|boolean',
         ]);
 
@@ -143,21 +144,33 @@ class AccountController extends Controller
 
     public function getOrders(Request $request): JsonResponse
     {
-        $orders = $request->user()->orders()
-            ->with('items')
+        $paginator = $request->user()->orders()
+            ->with(['items.variant', 'events'])
             ->orderBy('id', 'desc')
             ->paginate(10);
 
-        return $this->success($orders, 'Customer order history retrieved.');
+        return $this->success(
+            OrderResource::collection($paginator->items()),
+            'Customer order history retrieved.',
+            [
+                'pagination' => [
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'hasMore' => $paginator->hasMorePages(),
+                ],
+            ]
+        );
     }
 
     public function getOrderDetail(Request $request, string $reference): JsonResponse
     {
         $order = $request->user()->orders()
             ->where('reference', $reference)
-            ->with(['items', 'events', 'payments'])
+            ->with(['items.variant', 'events', 'payments'])
             ->firstOrFail();
 
-        return $this->success($order, 'Order details retrieved.');
+        return $this->success(new OrderResource($order), 'Order details retrieved.');
     }
 }

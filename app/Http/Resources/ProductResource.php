@@ -66,12 +66,17 @@ class ProductResource extends JsonResource
         $hoverImage = count($images) > 1 ? $images[1] : $images[0];
 
         $variants = $this->variants->map(function ($v) {
+            $stock = (int) $v->stock;
+            $threshold = (int) ($v->low_stock_threshold ?? 5);
+
             return [
                 'id' => (string) $v->id,
                 'size' => $v->size_label,
                 'price' => $v->price_rupees,
                 'mrp' => $v->mrp_rupees,
                 'inStock' => (bool) $v->in_stock,
+                'stock' => min(10, max(0, $stock)),
+                'lowStock' => ($stock > 0 && $stock <= $threshold),
             ];
         })->values()->toArray();
 

@@ -37,6 +37,7 @@ class StoreInfoController extends Controller
                     'instagram' => 'https://instagram.com/mayshaskincare',
                 ]),
                 'gstin' => (string) SiteSetting::get('gstin', '29ABCDE1234F1Z5'),
+                'admin2faEnabled' => (bool) filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN),
                 'status' => 'operational',
             ];
         });
