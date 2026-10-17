@@ -58,6 +58,14 @@ class CatalogCacheService
     }
 
     /**
+     * Flush cache by tags (alias for invalidateTags).
+     */
+    public static function flush(array|string $tags): void
+    {
+        static::invalidateTags($tags);
+    }
+
+    /**
      * Invalidate catalog caches on model mutations.
      */
     public static function invalidateProducts(): void
