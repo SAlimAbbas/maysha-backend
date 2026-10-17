@@ -46,7 +46,10 @@ class ShippingController extends Controller
 
             // Real-time lookup via Postal Pincode India API
             try {
-                $response = Http::timeout(4)->get("https://api.postalpincode.in/pincode/{$pin}");
+                $response = Http::withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
+                    'Accept' => 'application/json',
+                ])->timeout(6)->withoutVerifying()->get("https://api.postalpincode.in/pincode/{$pin}");
 
                 if ($response->successful()) {
                     $data = $response->json();

@@ -22,10 +22,10 @@ class DatabaseSeeder extends Seeder
 
         // Ensure default administrator account exists
         \App\Models\User::firstOrCreate(
-            ['email' => 'admin@maysha.com'],
+            ['email' => 'shyamlalmaysha@gmail.com'],
             [
                 'name' => 'Maysha Administrator',
-                'password' => \Illuminate\Support\Facades\Hash::make('Admin123456!'),
+                'password' => \Illuminate\Support\Facades\Hash::make('Hnayacare@#2026'),
                 'role' => 'admin',
                 'email_verified_at' => now(),
             ]
