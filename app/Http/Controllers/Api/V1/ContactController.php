@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Traits\ApiResponse;
 use App\Models\ContactMessage;
 use App\Models\NewsletterSubscriber;
+use App\Rules\NotDisposableEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +25,7 @@ class ContactController extends Controller
         }
 
         $request->validate([
-            'email' => 'required|email|max:255',
+            'email' => ['required', 'string', 'email:rfc', 'max:255', new NotDisposableEmail()],
             'source' => 'nullable|string|max:50',
         ]);
 
@@ -53,7 +54,7 @@ class ContactController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'email' => ['required', 'string', 'email:rfc', 'max:255', new NotDisposableEmail()],
             'phone' => 'nullable|string|max:20',
             'subject' => 'nullable|string|max:255',
             'message' => 'required|string|max:3000',
