@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Traits\ApiResponse;
 use App\Models\Order;
+use App\Models\OrderEvent;
 use App\Models\Payment;
 use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -60,15 +62,24 @@ class PaymentController extends Controller
 
         $payment = Payment::where('gateway_order_id', $orderId)->first();
 
+        if (! $payment) {
+            return $this->error('Matching payment transaction not found for verification.', 404);
+        }
+
         if (! $isValid) {
-            if ($payment) {
-                $payment->update(['status' => 'failed']);
-            }
+            $payment->update(['status' => 'failed']);
 
             return $this->error('Invalid payment signature verification failed.', 400);
         }
 
-        if ($payment) {
+        // Idempotent: If already captured and order paid, return success
+        if ($payment->status === 'captured' && $payment->order?->status === 'paid') {
+            return $this->success(null, 'Payment already verified.');
+        }
+
+        DB::transaction(function () use ($payment, $paymentId, $signature) {
+            $order = Order::where('id', $payment->order_id)->lockForUpdate()->first();
+
             $payment->update([
                 'gateway_payment_id' => $paymentId,
                 'gateway_signature' => $signature,
@@ -76,25 +87,33 @@ class PaymentController extends Controller
                 'verified_at' => now(),
             ]);
 
-            $order = $payment->order;
             if ($order) {
-                $orderUpdates = [
-                    'status' => 'paid',
-                    'paid_at' => now(),
-                    'reserved_until' => null,
-                ];
-                if (! $order->invoice_no) {
-                    $orderUpdates['invoice_no'] = Order::generateInvoiceNo();
-                }
-                $order->update($orderUpdates);
+                // If the order was cancelled or expired, do not silently resurrect; flag for refund review
+                if ($order->status === 'cancelled') {
+                    OrderEvent::create([
+                        'order_id' => $order->id,
+                        'status' => 'cancelled',
+                        'note' => "Payment captured via Razorpay ({$paymentId}) for previously cancelled order. Flagged for admin refund review.",
+                    ]);
+                } else {
+                    $orderUpdates = [
+                        'status' => 'paid',
+                        'paid_at' => now(),
+                        'reserved_until' => null,
+                    ];
+                    if (! $order->invoice_no) {
+                        $orderUpdates['invoice_no'] = Order::generateInvoiceNo();
+                    }
+                    $order->update($orderUpdates);
 
-                \App\Models\OrderEvent::create([
-                    'order_id' => $order->id,
-                    'status' => 'paid',
-                    'note' => "Payment captured successfully via Razorpay (Payment ID: {$paymentId}).",
-                ]);
+                    OrderEvent::create([
+                        'order_id' => $order->id,
+                        'status' => 'paid',
+                        'note' => "Payment captured successfully via Razorpay (Payment ID: {$paymentId}).",
+                    ]);
+                }
             }
-        }
+        });
 
         return $this->success(null, 'Payment successfully verified and order marked as paid.');
     }
@@ -118,18 +137,59 @@ class PaymentController extends Controller
             $entity = $payload['payment']['entity'];
             $gatewayOrderId = $entity['order_id'] ?? null;
             $gatewayPaymentId = $entity['id'] ?? null;
+            $amountPaise = $entity['amount'] ?? null;
 
             if ($gatewayOrderId) {
-                $payment = Payment::where('gateway_order_id', $gatewayOrderId)->first();
-                if ($payment && $payment->status !== 'captured') {
+                DB::transaction(function () use ($gatewayOrderId, $gatewayPaymentId, $entity, $amountPaise) {
+                    $payment = Payment::where('gateway_order_id', $gatewayOrderId)->lockForUpdate()->first();
+                    if (! $payment || $payment->status === 'captured') {
+                        return;
+                    }
+
+                    // Validate paid amount against order total
+                    if ($amountPaise && (int) $amountPaise !== (int) $payment->amount_paise) {
+                        $payment->update([
+                            'status' => 'amount_mismatch',
+                            'raw_response' => $entity,
+                        ]);
+
+                        return;
+                    }
+
                     $payment->update([
                         'gateway_payment_id' => $gatewayPaymentId,
                         'status' => 'captured',
                         'raw_response' => $entity,
                         'verified_at' => now(),
                     ]);
-                    $payment->order->update(['status' => 'paid']);
-                }
+
+                    $order = Order::where('id', $payment->order_id)->lockForUpdate()->first();
+                    if ($order) {
+                        if ($order->status === 'cancelled') {
+                            OrderEvent::create([
+                                'order_id' => $order->id,
+                                'status' => 'cancelled',
+                                'note' => "Webhook received payment.captured for cancelled order. Flagged for admin refund review.",
+                            ]);
+                        } else {
+                            $orderUpdates = [
+                                'status' => 'paid',
+                                'paid_at' => now(),
+                                'reserved_until' => null,
+                            ];
+                            if (! $order->invoice_no) {
+                                $orderUpdates['invoice_no'] = Order::generateInvoiceNo();
+                            }
+                            $order->update($orderUpdates);
+
+                            OrderEvent::create([
+                                'order_id' => $order->id,
+                                'status' => 'paid',
+                                'note' => "Webhook payment.captured confirmed (Payment ID: {$gatewayPaymentId}).",
+                            ]);
+                        }
+                    }
+                });
             }
         } elseif ($event === 'payment.failed' && isset($payload['payment']['entity'])) {
             $entity = $payload['payment']['entity'];

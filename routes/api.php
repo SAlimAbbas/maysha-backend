@@ -51,7 +51,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:auth-forgot');
 
         // Email Verification
-        Route::get('/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
+        Route::get('/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+            ->middleware(['signed', 'throttle:6,1'])
+            ->name('verification.verify');
 
         // Google Socialite OAuth
         Route::get('/google/redirect', [AuthController::class, 'redirectToGoogle'])->middleware('throttle:auth-google');

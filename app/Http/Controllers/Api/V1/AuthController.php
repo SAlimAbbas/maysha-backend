@@ -223,6 +223,10 @@ class AuthController extends Controller
      */
     public function verifyEmail(Request $request, string $id, string $hash): JsonResponse|RedirectResponse
     {
+        if (! $request->hasValidSignature()) {
+            return $this->error('Invalid or expired verification signature.', 403);
+        }
+
         $user = User::findOrFail($id);
 
         if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {

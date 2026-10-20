@@ -232,6 +232,13 @@ class OrderController extends Controller
             $order->update(['invoice_no' => Order::generateInvoiceNo()]);
         }
 
+        $placedDate = $order->placed_at ?? $order->created_at ?? now();
+        $year = (int) $placedDate->format('Y');
+        $month = (int) $placedDate->format('n');
+        $financialYear = $month >= 4
+            ? sprintf('%d-%d', $year, $year + 1)
+            : sprintf('%d-%d', $year - 1, $year);
+
         return $this->success([
             'invoiceNo' => $order->invoice_no,
             'orderReference' => $order->reference,
@@ -243,8 +250,8 @@ class OrderController extends Controller
                 'phone' => $order->guest_phone ?: ($order->shipping_address['phone'] ?? null),
                 'address' => $order->shipping_address,
             ],
-            'gstin' => SiteSetting::get('gstin', '29ABCDE1234F1Z5'),
-            'financialYear' => '2026-2027',
+            'gstin' => SiteSetting::get('gstin', ''),
+            'financialYear' => $financialYear,
             'items' => $order->items->map(fn ($item) => [
                 'name' => $item->product_name,
                 'size' => $item->size_label,

@@ -44,10 +44,12 @@ class AdminSettingController extends Controller
             'about_hero_image' => 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=1200&q=85',
             'about_philosophy_image' => 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=1200&q=85',
             'admin_2fa_enabled' => false,
-            'admin_2fa_pin' => '9281',
         ];
 
         $merged = array_merge($defaults, $allSettings);
+        // Security (Finding 5): Never return cleartext PIN over API
+        unset($merged['admin_2fa_pin']);
+        $merged['admin_2fa_configured'] = ! empty($allSettings['admin_2fa_pin']);
 
         return $this->success($merged, 'Settings retrieved successfully.');
     }
@@ -59,15 +61,43 @@ class AdminSettingController extends Controller
     {
         $settings = $request->input('settings', []);
 
+        // Security (Finding 5): Strict key allowlist
+        $allowedKeys = [
+            'store_name',
+            'tagline',
+            'support_email',
+            'support_phone',
+            'support_whatsapp',
+            'support_hours',
+            'store_address',
+            'free_shipping_threshold',
+            'shipping_fee',
+            'announcement_messages',
+            'social_instagram',
+            'social_facebook',
+            'about_hero_title',
+            'about_hero_image',
+            'about_philosophy_image',
+            'cod_enabled',
+            'cod_fee',
+            'gstin',
+            'admin_2fa_enabled',
+            'admin_2fa_pin',
+        ];
+
+        $updatedKeys = [];
         foreach ($settings as $key => $val) {
-            SiteSetting::set($key, $val);
+            if (in_array($key, $allowedKeys, true)) {
+                SiteSetting::set($key, $val);
+                $updatedKeys[] = $key;
+            }
         }
 
         CatalogCacheService::flush(['settings', 'home']);
 
-        AuditLog::record('settings.updated', null, $request->user(), ['keys' => array_keys($settings)]);
+        AuditLog::record('settings.updated', null, $request->user(), ['keys' => $updatedKeys]);
 
-        return $this->success($settings, 'Website settings updated successfully.');
+        return $this->success(['updated' => $updatedKeys], 'Website settings updated successfully.');
     }
 
     /**

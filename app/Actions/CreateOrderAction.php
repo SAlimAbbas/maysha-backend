@@ -123,7 +123,7 @@ class CreateOrderAction
             $validCoupon = null;
             if ($couponCode) {
                 $validCoupon = Coupon::where('code', strtoupper(trim($couponCode)))->first();
-                if ($validCoupon && $validCoupon->isValidFor($subtotalPaise, $user)) {
+                if ($validCoupon && $validCoupon->isValidFor($subtotalPaise, $user, $guestEmail, $guestPhone)) {
                     $discountPaise = $validCoupon->calculateDiscountPaise($subtotalPaise);
                 } else {
                     abort(response()->json([

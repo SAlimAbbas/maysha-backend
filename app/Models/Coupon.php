@@ -41,9 +41,9 @@ class Coupon extends Model
     }
 
     /**
-     * Check if coupon is currently valid for a given subtotal in paise and user.
+     * Check if coupon is currently valid for a given subtotal in paise, user, or guest credentials.
      */
-    public function isValidFor(int $subtotalPaise, ?User $user = null): bool
+    public function isValidFor(int $subtotalPaise, ?User $user = null, ?string $guestEmail = null, ?string $guestPhone = null): bool
     {
         if (! $this->is_active) {
             return false;
@@ -62,10 +62,28 @@ class Coupon extends Model
             return false;
         }
 
-        // First order only check
-        if ($this->first_order_only && $user) {
-            if ($user->orders()->whereIn('status', ['paid', 'processing', 'shipped', 'delivered'])->exists()) {
-                return false;
+        // First order only check (prevents both customer & guest coupon re-use)
+        if ($this->first_order_only) {
+            if ($user) {
+                if ($user->orders()->whereIn('status', ['paid', 'processing', 'shipped', 'delivered'])->exists()) {
+                    return false;
+                }
+            } elseif ($guestEmail || $guestPhone) {
+                $hasPriorOrders = \App\Models\Order::query()
+                    ->where(function ($q) use ($guestEmail, $guestPhone) {
+                        if ($guestEmail) {
+                            $q->where('guest_email', $guestEmail);
+                        }
+                        if ($guestPhone) {
+                            $q->orWhere('shipping_address->phone', $guestPhone);
+                        }
+                    })
+                    ->whereIn('status', ['paid', 'processing', 'shipped', 'delivered'])
+                    ->exists();
+
+                if ($hasPriorOrders) {
+                    return false;
+                }
             }
         }
 
@@ -74,11 +92,30 @@ class Coupon extends Model
             return false;
         }
 
-        // Per-user usage limit check
-        if ($user && $this->per_user_limit) {
-            $userRedemptions = $this->redemptions()->where('user_id', $user->id)->count();
-            if ($userRedemptions >= $this->per_user_limit) {
-                return false;
+        // Per-user / per-guest usage limit check
+        if ($this->per_user_limit) {
+            if ($user) {
+                $userRedemptions = $this->redemptions()->where('user_id', $user->id)->count();
+                if ($userRedemptions >= $this->per_user_limit) {
+                    return false;
+                }
+            } elseif ($guestEmail || $guestPhone) {
+                $guestRedemptions = $this->redemptions()
+                    ->whereHas('order', function ($q) use ($guestEmail, $guestPhone) {
+                        $q->where(function ($inner) use ($guestEmail, $guestPhone) {
+                            if ($guestEmail) {
+                                $inner->where('guest_email', $guestEmail);
+                            }
+                            if ($guestPhone) {
+                                $inner->orWhere('shipping_address->phone', $guestPhone);
+                            }
+                        })->whereIn('status', ['paid', 'processing', 'shipped', 'delivered']);
+                    })
+                    ->count();
+
+                if ($guestRedemptions >= $this->per_user_limit) {
+                    return false;
+                }
             }
         }
 

@@ -52,6 +52,9 @@ class RazorpayService
 
         // Mock gateway order ID for local development and test suite
         if (! $razorpayOrderId) {
+            if (! app()->environment('testing') && ! app()->environment('local')) {
+                throw new \RuntimeException('Razorpay credentials not configured for creating live order.');
+            }
             $razorpayOrderId = 'order_'.Str::random(14);
         }
 
@@ -84,7 +87,15 @@ class RazorpayService
      */
     public function verifySignature(string $razorpayOrderId, string $razorpayPaymentId, string $signature): bool
     {
-        $secret = $this->keySecret ?: 'test_secret_key_123';
+        $secret = $this->keySecret;
+        if (empty($secret)) {
+            if (app()->environment('testing')) {
+                $secret = 'test_secret_key_123';
+            } else {
+                throw new \RuntimeException('Razorpay secret key is not configured.');
+            }
+        }
+
         $expectedSignature = hash_hmac('sha256', $razorpayOrderId.'|'.$razorpayPaymentId, $secret);
 
         return hash_equals($expectedSignature, $signature);
@@ -95,9 +106,51 @@ class RazorpayService
      */
     public function verifyWebhookSignature(string $rawBody, string $signature): bool
     {
-        $secret = $this->webhookSecret ?: 'test_webhook_secret_123';
+        $secret = $this->webhookSecret;
+        if (empty($secret)) {
+            if (app()->environment('testing')) {
+                $secret = 'test_webhook_secret_123';
+            } else {
+                throw new \RuntimeException('Razorpay webhook secret is not configured.');
+            }
+        }
+
         $expectedSignature = hash_hmac('sha256', $rawBody, $secret);
 
         return hash_equals($expectedSignature, $signature);
+    }
+
+    /**
+     * Process refund via Razorpay API.
+     */
+    public function refundPayment(string $paymentId, ?int $amountPaise = null, array $notes = []): array
+    {
+        if (! $this->keyId || ! $this->keySecret) {
+            if (app()->environment('testing') || app()->environment('local')) {
+                return [
+                    'id' => 'rfnd_test_'.Str::random(14),
+                    'payment_id' => $paymentId,
+                    'amount' => $amountPaise ?? 0,
+                    'status' => 'processed',
+                ];
+            }
+            throw new \RuntimeException('Razorpay credentials not configured for refund processing.');
+        }
+
+        $payload = [
+            'notes' => $notes,
+        ];
+        if ($amountPaise) {
+            $payload['amount'] = $amountPaise;
+        }
+
+        $response = Http::withBasicAuth($this->keyId, $this->keySecret)
+            ->post("https://api.razorpay.com/v1/payments/{$paymentId}/refund", $payload);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Razorpay refund failed: '.($response->json('error.description') ?? $response->body()));
+        }
+
+        return $response->json();
     }
 }
