@@ -169,4 +169,64 @@ class StorefrontAndAccountTest extends TestCase
         $dup = $this->actingAs($user, 'sanctum')->postJson("/api/v1/reviews/{$review->id}/helpful");
         $dup->assertStatus(409);
     }
+
+    public function test_store_info_returns_about_and_seo_settings(): void
+    {
+        $response = $this->getJson('/api/v1/store-info');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonStructure([
+                'data' => [
+                    'brand',
+                    'tagline',
+                    'currency',
+                    'about' => [
+                        'heroTitle',
+                        'heroSubtitle',
+                        'heroImage',
+                        'philosophyImage',
+                        'storyTitle',
+                        'storyContent',
+                    ],
+                    'seo' => [
+                        'homeTitle',
+                        'homeDescription',
+                        'aboutTitle',
+                        'aboutDescription',
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_admin_can_update_about_and_seo_settings(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $payload = [
+            'settings' => [
+                'about_hero_title' => 'Custom Botanical Title',
+                'about_hero_subtitle' => 'Custom subtitle description for our lab',
+                'about_hero_image' => 'https://res.cloudinary.com/test/about-hero.jpg',
+                'about_philosophy_image' => 'https://res.cloudinary.com/test/about-phil.jpg',
+                'about_story_title' => 'Our Unique Story',
+                'about_story_content' => 'Paragraph 1 about our formulations.',
+                'seo_about_title' => 'Custom SEO About Title',
+                'seo_about_description' => 'Custom SEO About Description',
+            ],
+        ];
+
+        $updateRes = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/admin/settings', $payload);
+        $updateRes->assertStatus(200);
+
+        $storeInfo = $this->getJson('/api/v1/store-info');
+        $storeInfo->assertStatus(200)
+            ->assertJsonPath('data.about.heroTitle', 'Custom Botanical Title')
+            ->assertJsonPath('data.about.heroSubtitle', 'Custom subtitle description for our lab')
+            ->assertJsonPath('data.about.heroImage', 'https://res.cloudinary.com/test/about-hero.jpg')
+            ->assertJsonPath('data.about.storyTitle', 'Our Unique Story')
+            ->assertJsonPath('data.about.storyContent', 'Paragraph 1 about our formulations.')
+            ->assertJsonPath('data.seo.aboutTitle', 'Custom SEO About Title');
+    }
 }
+
