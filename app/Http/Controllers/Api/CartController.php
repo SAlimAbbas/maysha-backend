@@ -175,4 +175,19 @@ class CartController extends Controller
 
         return $this->success($summary, 'Coupon removed successfully.');
     }
+
+    /**
+     * Clear all items and coupon from the cart.
+     */
+    public function clearCart(Request $request): JsonResponse
+    {
+        $cart = $this->resolveCart($request);
+        $user = $request->user('sanctum') ?? $request->user();
+        $cart->items()->delete();
+        $cart->update(['coupon_id' => null]);
+
+        $summary = $cart->fresh()->computeSummary($user);
+
+        return $this->success($summary, 'Cart cleared successfully.');
+    }
 }

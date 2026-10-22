@@ -129,6 +129,8 @@ Route::prefix('v1')->group(function () {
         Route::delete('/cart/items/{id}', [CartController::class, 'removeItem']);
         Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->middleware('throttle:coupon');
         Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->middleware('throttle:coupon');
+        Route::delete('/cart', [CartController::class, 'clearCart']);
+        Route::post('/cart/clear', [CartController::class, 'clearCart']);
     });
 
     // Orders & Checkout Quote (Optional Sanctum Auth for Logged-In / Guest)

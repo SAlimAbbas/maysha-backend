@@ -111,6 +111,22 @@ class PaymentController extends Controller
                         'status' => 'paid',
                         'note' => "Payment captured successfully via Razorpay (Payment ID: {$paymentId}).",
                     ]);
+
+                    // Clear the cart now that payment is confirmed
+                    if ($order->user_id) {
+                        \App\Models\Cart::where('user_id', $order->user_id)->each(function ($c) {
+                            $c->items()->delete();
+                            $c->update(['coupon_id' => null]);
+                        });
+                    }
+                    $cartToken = request()->header('X-Cart-Token') ?: request()->cookie('maysha_cart_token');
+                    if ($cartToken) {
+                        $tokenCart = \App\Models\Cart::where('token', $cartToken)->first();
+                        if ($tokenCart) {
+                            $tokenCart->items()->delete();
+                            $tokenCart->update(['coupon_id' => null]);
+                        }
+                    }
                 }
             }
         });

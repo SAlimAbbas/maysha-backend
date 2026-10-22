@@ -32,7 +32,7 @@ class RazorpayService
 
         $razorpayOrderId = null;
 
-        // If live credentials exist, communicate with Razorpay API
+        // If live/test credentials exist, communicate with Razorpay API
         if ($this->keyId && $this->keySecret) {
             $response = Http::withBasicAuth($this->keyId, $this->keySecret)
                 ->post('https://api.razorpay.com/v1/orders', [
@@ -47,13 +47,21 @@ class RazorpayService
 
             if ($response->successful()) {
                 $razorpayOrderId = $response->json('id');
+            } else {
+                $errDesc = $response->json('error.description') ?: $response->json('error.message') ?: 'Payment gateway communication failure';
+                \Illuminate\Support\Facades\Log::error('Razorpay order creation failed', [
+                    'status' => $response->status(),
+                    'error' => $response->json('error'),
+                    'order' => $order->reference,
+                ]);
+                throw new \RuntimeException("Razorpay payment gateway error: {$errDesc}");
             }
         }
 
-        // Mock gateway order ID for local development and test suite
+        // Mock gateway order ID strictly for testing when no keys are provided
         if (! $razorpayOrderId) {
-            if (! app()->environment('testing') && ! app()->environment('local')) {
-                throw new \RuntimeException('Razorpay credentials not configured for creating live order.');
+            if (! app()->environment('testing')) {
+                throw new \RuntimeException('Razorpay payment gateway credentials (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are not configured.');
             }
             $razorpayOrderId = 'order_'.Str::random(14);
         }

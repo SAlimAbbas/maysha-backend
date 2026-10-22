@@ -221,8 +221,9 @@ class CreateOrderAction
                 'actor_id' => $user?->id,
             ]);
 
-            // Clear Cart if provided
-            if ($cartToClear) {
+            // Clear Cart only for immediately confirmed orders (COD).
+            // For online payments (Razorpay), the cart is preserved until payment is verified successfully.
+            if ($cartToClear && $paymentMethod === 'cod') {
                 $cartToClear->items()->delete();
                 $cartToClear->update(['coupon_id' => null]);
             }
