@@ -151,8 +151,13 @@ class CartController extends Controller
             return $this->error('Cannot apply coupon to an empty cart.', 422);
         }
 
-        if (! $coupon || ! $coupon->isValidFor($summary['subtotalPaise'], $user)) {
-            return $this->error('Invalid, expired, or inapplicable coupon code.', 422);
+        if (! $coupon) {
+            return $this->error("Coupon code '{$code}' does not exist.", 422);
+        }
+
+        $reason = $coupon->getIneligibilityReason($summary['subtotalPaise'], $user);
+        if ($reason !== null) {
+            return $this->error($reason, 422);
         }
 
         $cart->update(['coupon_id' => $coupon->id]);

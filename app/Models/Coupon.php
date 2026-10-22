@@ -41,32 +41,34 @@ class Coupon extends Model
     }
 
     /**
-     * Check if coupon is currently valid for a given subtotal in paise, user, or guest credentials.
+     * Get descriptive ineligibility error message if coupon cannot be applied, or null if valid.
      */
-    public function isValidFor(int $subtotalPaise, ?User $user = null, ?string $guestEmail = null, ?string $guestPhone = null): bool
+    public function getIneligibilityReason(int $subtotalPaise, ?User $user = null, ?string $guestEmail = null, ?string $guestPhone = null): ?string
     {
         if (! $this->is_active) {
-            return false;
+            return "Coupon '{$this->code}' is currently inactive or disabled.";
         }
 
         $now = now();
         if ($this->starts_at && $now->lt($this->starts_at)) {
-            return false;
+            return "Coupon '{$this->code}' will become active on {$this->starts_at->format('d M Y')}.";
         }
 
         if ($this->ends_at && $now->gt($this->ends_at)) {
-            return false;
+            return "Coupon '{$this->code}' expired on {$this->ends_at->format('d M Y')}.";
         }
 
         if ($subtotalPaise < $this->min_subtotal_paise) {
-            return false;
+            $minRupees = (int) round($this->min_subtotal_paise / 100);
+            $shortfall = (int) ceil(($this->min_subtotal_paise - $subtotalPaise) / 100);
+            return "Minimum order value of ₹{$minRupees} required for '{$this->code}'. Add items worth ₹{$shortfall} more to your cart to use this coupon.";
         }
 
         // First order only check (prevents both customer & guest coupon re-use)
         if ($this->first_order_only) {
             if ($user) {
                 if ($user->orders()->whereIn('status', ['paid', 'processing', 'shipped', 'delivered'])->exists()) {
-                    return false;
+                    return "Coupon '{$this->code}' is reserved for first-time customers only.";
                 }
             } elseif ($guestEmail || $guestPhone) {
                 $hasPriorOrders = \App\Models\Order::query()
@@ -82,14 +84,14 @@ class Coupon extends Model
                     ->exists();
 
                 if ($hasPriorOrders) {
-                    return false;
+                    return "Coupon '{$this->code}' is reserved for first-time customers only.";
                 }
             }
         }
 
         // Global usage limit check
         if ($this->usage_limit && $this->redemptions()->count() >= $this->usage_limit) {
-            return false;
+            return "Coupon '{$this->code}' has reached its maximum redemption limit.";
         }
 
         // Per-user / per-guest usage limit check
@@ -97,7 +99,7 @@ class Coupon extends Model
             if ($user) {
                 $userRedemptions = $this->redemptions()->where('user_id', $user->id)->count();
                 if ($userRedemptions >= $this->per_user_limit) {
-                    return false;
+                    return "You have already redeemed coupon '{$this->code}' the maximum allowed number of times.";
                 }
             } elseif ($guestEmail || $guestPhone) {
                 $guestRedemptions = $this->redemptions()
@@ -114,12 +116,20 @@ class Coupon extends Model
                     ->count();
 
                 if ($guestRedemptions >= $this->per_user_limit) {
-                    return false;
+                    return "You have already redeemed coupon '{$this->code}' the maximum allowed number of times.";
                 }
             }
         }
 
-        return true;
+        return null;
+    }
+
+    /**
+     * Check if coupon is currently valid for a given subtotal in paise, user, or guest credentials.
+     */
+    public function isValidFor(int $subtotalPaise, ?User $user = null, ?string $guestEmail = null, ?string $guestPhone = null): bool
+    {
+        return $this->getIneligibilityReason($subtotalPaise, $user, $guestEmail, $guestPhone) === null;
     }
 
     /**
