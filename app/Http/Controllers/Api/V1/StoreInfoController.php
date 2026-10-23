@@ -36,10 +36,10 @@ class StoreInfoController extends Controller
                 'supportWhatsapp' => (string) SiteSetting::get('support_whatsapp', '+91 98765 43210'),
                 'supportHours' => (string) SiteSetting::get('support_hours', 'Mon - Sat: 9:30 AM to 6:30 PM IST'),
                 'storeAddress' => (string) SiteSetting::get('store_address', 'Maysha Organics Lab, Mumbai, MH, India'),
-                'socialLinks' => SiteSetting::get('social_links', [
+                'socialLinks' => [
                     'instagram' => (string) SiteSetting::get('social_instagram', 'https://instagram.com/mayshaskincare'),
                     'facebook' => (string) SiteSetting::get('social_facebook', 'https://facebook.com/mayshaskincare'),
-                ]),
+                ],
                 'gstin' => (string) SiteSetting::get('gstin', '29ABCDE1234F1Z5'),
                 'admin2faEnabled' => (bool) filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN),
                 'status' => 'operational',
