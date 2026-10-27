@@ -57,6 +57,9 @@ return Application::configure(basePath: dirname(__DIR__))
             $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         }
 
+        // Trust edge client IP from BFF when secret matches
+        $middleware->prepend(\App\Http\Middleware\TrustBffClientIp::class);
+
         // Security headers across all responses
         $middleware->append(SecurityHeaders::class);
 

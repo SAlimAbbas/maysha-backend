@@ -54,4 +54,8 @@ return [
         'stream_customer_code' => env('CLOUDFLARE_STREAM_CUSTOMER_CODE'),
     ],
 
+    'bff' => [
+        'secret' => env('BFF_SECRET'),
+    ],
+
 ];
