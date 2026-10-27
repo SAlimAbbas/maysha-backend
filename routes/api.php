@@ -55,9 +55,10 @@ Route::prefix('v1')->group(function () {
             ->middleware(['signed', 'throttle:6,1'])
             ->name('verification.verify');
 
-        // Google Socialite OAuth
+        // Google Socialite OAuth & Secure Code Exchange
         Route::get('/google/redirect', [AuthController::class, 'redirectToGoogle'])->middleware('throttle:auth-google');
         Route::get('/google/callback', [AuthController::class, 'handleGoogleCallback'])->middleware('throttle:auth-google');
+        Route::post('/exchange-code', [AuthController::class, 'exchangeCode'])->middleware('throttle:auth-login');
 
         // Authenticated customer routes
         Route::middleware('auth:sanctum')->group(function () {

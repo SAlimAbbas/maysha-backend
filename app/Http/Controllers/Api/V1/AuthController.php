@@ -355,9 +355,44 @@ class AuthController extends Controller
             return redirect()->away("{$frontendUrl}/admin?error=".urlencode('Two-Factor PIN authentication is required for administrator accounts.'));
         }
 
+        // Generate one-time short-lived (60s) authorization code to prevent token exposure in URLs and login-CSRF
+        $authCode = bin2hex(random_bytes(32));
+        cache()->put("oauth_code_{$authCode}", [
+            'user_id' => $user->id,
+            'created_at' => now()->timestamp,
+        ], now()->addSeconds(60));
+
+        return redirect()->away("{$frontendUrl}/auth/callback?code={$authCode}");
+    }
+
+    /**
+     * Server-side exchange of one-time OAuth code for authentication Bearer token.
+     */
+    public function exchangeCode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|size:64',
+        ]);
+
+        $code = $validated['code'];
+        $cacheKey = "oauth_code_{$code}";
+        $data = cache()->pull($cacheKey);
+
+        if (! $data || empty($data['user_id'])) {
+            return $this->error('Invalid or expired authentication exchange code.', 401);
+        }
+
+        $user = User::find($data['user_id']);
+        if (! $user) {
+            return $this->error('User not found.', 404);
+        }
+
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('maysha-storefront')->plainTextToken;
 
-        return redirect()->away("{$frontendUrl}/auth/callback?token={$token}");
+        return $this->success([
+            'user' => new UserResource($user),
+            'token' => $token,
+        ], 'Authentication code exchanged successfully.');
     }
 }
