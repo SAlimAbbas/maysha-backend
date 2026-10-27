@@ -236,6 +236,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/shipments/{id}/cancel', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'cancel']);
         Route::post('/shipments/{id}/sync', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'sync']);
         Route::get('/shiprocket/wallet', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'wallet']);
+        Route::get('/shiprocket/doctor', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'doctor']);
         Route::post('/shipments/{id}/ndr/reattempt', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'reattemptNdr']);
     });
 });

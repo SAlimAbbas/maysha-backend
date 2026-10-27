@@ -260,4 +260,71 @@ class AdminShipmentController extends Controller
 
         return $this->success($res, 'NDR re-attempt requested successfully.');
     }
+
+    /**
+     * Run doctor audit checks on Shiprocket connection.
+     */
+    public function doctor(): JsonResponse
+    {
+        $email = config('services.shiprocket.email');
+        $password = config('services.shiprocket.password');
+        $webhookToken = config('services.shiprocket.webhook_token');
+        $configured = !empty($email) && !empty($password);
+
+        $checks = [
+            'credentials' => [
+                'status' => $configured ? 'OK' : 'MISSING',
+                'message' => $configured ? 'Configured in environment' : 'Missing SHIPROCKET_EMAIL or SHIPROCKET_PASSWORD',
+            ],
+            'webhook_token' => [
+                'status' => !empty($webhookToken) ? 'OK' : 'MISSING',
+                'message' => !empty($webhookToken) ? 'Configured' : 'Missing SHIPROCKET_WEBHOOK_TOKEN',
+            ],
+            'pickup_location' => [
+                'status' => 'OK',
+                'value' => (string) \App\Models\SiteSetting::get('shiprocket_pickup_location', 'Primary'),
+            ],
+        ];
+
+        $healthy = false;
+        $wallet = null;
+
+        if ($configured) {
+            try {
+                /** @var ShiprocketClient $client */
+                $client = app(ShiprocketClient::class);
+                $client->getToken();
+                $checks['auth'] = [
+                    'status' => 'OK',
+                    'message' => 'Connected & authenticated with Shiprocket successfully',
+                ];
+
+                try {
+                    $walletData = $client->getWalletBalance();
+                    $wallet = $walletData['data'] ?? $walletData;
+                    $balance = $wallet['balance_amount'] ?? null;
+                    $checks['wallet'] = [
+                        'status' => ($balance !== null && $balance < 500) ? 'LOW' : 'OK',
+                        'balance' => $balance,
+                    ];
+                } catch (\Throwable $e) {
+                    $checks['wallet'] = ['status' => 'ERROR', 'message' => $e->getMessage()];
+                }
+
+                $healthy = true;
+            } catch (\Throwable $e) {
+                $checks['auth'] = [
+                    'status' => 'ERROR',
+                    'message' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return $this->success([
+            'healthy' => $healthy,
+            'configured' => $configured,
+            'checks' => $checks,
+            'wallet' => $wallet,
+        ], 'Shiprocket health check completed.');
+    }
 }
