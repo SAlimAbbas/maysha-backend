@@ -270,4 +270,55 @@ class OrderController extends Controller
             ],
         ], 'Invoice data retrieved successfully.');
     }
+
+    /**
+     * Get tracking details and event timeline for an order.
+     */
+    public function tracking(Request $request, string $reference): JsonResponse
+    {
+        $order = Order::where('reference', $reference)->with(['shipment.events'])->first();
+
+        if (! $order) {
+            return $this->error('Order not found.', 404);
+        }
+
+        $user = $request->user('sanctum') ?? $request->user();
+        $isAuthorized = false;
+
+        if ($user) {
+            if ($order->user_id === $user->id || (method_exists($user, 'isAdmin') && $user->isAdmin())) {
+                $isAuthorized = true;
+            }
+        } else {
+            $queryEmail = strtolower((string) $request->input('email'));
+            $queryPhone = (string) $request->input('phone');
+            if ($queryEmail && strtolower((string) $order->guest_email) === $queryEmail) {
+                $isAuthorized = true;
+            } elseif ($queryPhone && (string) $order->guest_phone === $queryPhone) {
+                $isAuthorized = true;
+            } elseif ($request->cookie('maysha_order_guest_'.$order->reference)) {
+                $isAuthorized = true;
+            }
+        }
+
+        if (! $isAuthorized) {
+            return $this->error('Access denied. Please provide email or phone to view tracking.', 403);
+        }
+
+        $shipment = $order->shipment;
+
+        return $this->success([
+            'orderReference' => $order->reference,
+            'status' => $order->status,
+            'courier' => $shipment?->courier_name ?: $order->courier,
+            'awb' => $shipment?->awb_code ?: $order->tracking_no,
+            'trackingUrl' => $shipment?->tracking_url ?: ($order->tracking_no ? "https://shiprocket.co/tracking/{$order->tracking_no}" : null),
+            'events' => $shipment ? $shipment->events->map(fn ($ev) => [
+                'status' => $ev->status,
+                'location' => $ev->location,
+                'note' => $ev->note,
+                'occurredAt' => $ev->occurred_at?->toIso8601String(),
+            ]) : [],
+        ], 'Tracking details retrieved successfully.');
+    }
 }

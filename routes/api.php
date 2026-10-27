@@ -86,6 +86,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/orders', [AccountController::class, 'getOrders']);
         Route::get('/orders/{reference}', [AccountController::class, 'getOrderDetail']);
+        Route::post('/orders/{reference}/returns', [AccountController::class, 'requestReturn']);
     });
 
     // ----------------------------------------------------------------------
@@ -140,6 +141,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:checkout');
         Route::get('/orders/{reference}', [OrderController::class, 'show']);
         Route::get('/orders/{reference}/invoice', [OrderController::class, 'invoice']);
+        Route::get('/orders/{reference}/tracking', [OrderController::class, 'tracking']);
     });
 
     // Payments (Razorpay)
@@ -220,5 +222,20 @@ Route::prefix('v1')->group(function () {
         Route::post('/2fa/setup', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'setup']);
         Route::post('/2fa/confirm', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'confirm']);
         Route::post('/2fa/disable', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'disable']);
+
+        // Shiprocket Logistics & Shipments Management
+        Route::get('/shipments', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'index']);
+        Route::get('/orders/{id}/shipment', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'showByOrder']);
+        Route::post('/orders/{id}/shipment', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'createForOrder']);
+        Route::get('/shipments/{id}/couriers', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'getCouriers']);
+        Route::post('/shipments/{id}/assign', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'assign']);
+        Route::post('/shipments/{id}/pickup', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'pickup']);
+        Route::post('/shipments/{id}/label', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'label']);
+        Route::post('/shipments/{id}/manifest', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'manifest']);
+        Route::post('/shipments/{id}/invoice', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'invoice']);
+        Route::post('/shipments/{id}/cancel', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'cancel']);
+        Route::post('/shipments/{id}/sync', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'sync']);
+        Route::get('/shiprocket/wallet', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'wallet']);
+        Route::post('/shipments/{id}/ndr/reattempt', [\App\Http\Controllers\Api\V1\Admin\AdminShipmentController::class, 'reattemptNdr']);
     });
 });

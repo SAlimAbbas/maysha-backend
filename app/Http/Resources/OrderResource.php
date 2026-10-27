@@ -71,6 +71,33 @@ class OrderResource extends JsonResource
                     'createdAt' => $event->created_at?->toIso8601String(),
                 ];
             }) : [],
+            'shipment' => $this->shipment ? [
+                'id' => (string) $this->shipment->id,
+                'courierName' => $this->shipment->courier_name,
+                'courierId' => $this->shipment->courier_id,
+                'awb' => $this->shipment->awb_code,
+                'trackingUrl' => $this->shipment->tracking_url ?: $trackingUrl,
+                'status' => $this->shipment->status,
+                'srStatus' => $this->shipment->sr_status,
+                'labelUrl' => ($request->user() && method_exists($request->user(), 'isAdmin') && $request->user()->isAdmin()) ? $this->shipment->label_url : null,
+                'manifestUrl' => ($request->user() && method_exists($request->user(), 'isAdmin') && $request->user()->isAdmin()) ? $this->shipment->manifest_url : null,
+                'invoiceUrl' => $this->shipment->invoice_url,
+                'weightGrams' => $this->shipment->weight_grams,
+                'lengthCm' => $this->shipment->length_cm,
+                'breadthCm' => $this->shipment->breadth_cm,
+                'heightCm' => $this->shipment->height_cm,
+                'pickupScheduledAt' => $this->shipment->pickup_scheduled_at?->toIso8601String(),
+                'lastSyncedAt' => $this->shipment->last_synced_at?->toIso8601String(),
+                'events' => $this->shipment->relationLoaded('events') ? $this->shipment->events->map(function ($ev) {
+                    return [
+                        'status' => $ev->status,
+                        'srStatus' => $ev->sr_status,
+                        'location' => $ev->location,
+                        'note' => $ev->note,
+                        'occurredAt' => $ev->occurred_at?->toIso8601String(),
+                    ];
+                }) : [],
+            ] : null,
             'createdAt' => $this->created_at?->toIso8601String(),
         ];
     }

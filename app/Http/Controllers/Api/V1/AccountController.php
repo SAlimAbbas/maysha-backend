@@ -168,9 +168,41 @@ class AccountController extends Controller
     {
         $order = $request->user()->orders()
             ->where('reference', $reference)
-            ->with(['items.variant', 'events', 'payments'])
+            ->with(['items.variant', 'events', 'payments', 'shipment.events'])
             ->firstOrFail();
 
         return $this->success(new OrderResource($order), 'Order details retrieved.');
+    }
+
+    /**
+     * Customer requests a return for a delivered order.
+     */
+    public function requestReturn(Request $request, string $reference, \App\Actions\Shiprocket\CreateReturnShipmentAction $action): JsonResponse
+    {
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $order = $request->user()->orders()
+            ->where('reference', $reference)
+            ->with(['shipment'])
+            ->firstOrFail();
+
+        if ($order->status !== 'delivered') {
+            return $this->error('Only delivered orders are eligible for return.', 422);
+        }
+
+        $returnWindowDays = (int) (\App\Models\SiteSetting::get('return_window_days', 7) ?? 7);
+        $deliveredAt = $order->delivered_at ?: $order->updated_at;
+        if ($deliveredAt && $deliveredAt->lt(now()->subDays($returnWindowDays))) {
+            return $this->error("The return window of {$returnWindowDays} days has expired for this order.", 422);
+        }
+
+        $action->execute($order, $request->input('reason'));
+
+        return $this->success(
+            new OrderResource($order->fresh(['shipment.events', 'items', 'events'])),
+            'Return request submitted successfully.'
+        );
     }
 }
