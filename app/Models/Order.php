@@ -37,6 +37,33 @@ class Order extends Model
         'delivered_at',
     ];
 
+    public const ALLOWED_TRANSITIONS = [
+        'pending_payment' => ['processing', 'paid', 'cancelled'],
+        'paid' => ['processing', 'shipped', 'cancelled', 'refunded'],
+        'processing' => ['shipped', 'cancelled', 'refunded'],
+        'shipped' => ['delivered', 'ndr', 'rto', 'exception', 'refunded'],
+        'out_for_delivery' => ['delivered', 'ndr', 'rto', 'exception'],
+        'ndr' => ['shipped', 'delivered', 'rto', 'exception'],
+        'delivered' => ['refunded', 'return_requested', 'returned'],
+        'rto' => ['rto_delivered', 'refunded', 'cancelled'],
+        'rto_delivered' => ['refunded', 'cancelled'],
+        'cancelled' => ['refunded'],
+        'refunded' => [],
+        'returned' => ['refunded'],
+        'exception' => ['shipped', 'delivered', 'rto', 'cancelled', 'refunded'],
+    ];
+
+    public function canTransitionTo(string $newStatus): bool
+    {
+        if ($this->status === $newStatus) {
+            return true;
+        }
+
+        $allowed = self::ALLOWED_TRANSITIONS[$this->status] ?? [];
+
+        return in_array($newStatus, $allowed, true);
+    }
+
     protected $casts = [
         'subtotal_paise' => 'integer',
         'discount_paise' => 'integer',

@@ -161,4 +161,21 @@ class RazorpayService
 
         return $response->json();
     }
+
+    /**
+     * Fetch payment details from Razorpay API.
+     */
+    public function fetchPayment(string $paymentId): ?array
+    {
+        if ($this->keyId && $this->keySecret) {
+            $response = Http::withBasicAuth($this->keyId, $this->keySecret)
+                ->get("https://api.razorpay.com/v1/payments/{$paymentId}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+        }
+
+        return null;
+    }
 }

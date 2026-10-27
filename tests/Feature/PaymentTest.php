@@ -19,6 +19,20 @@ class PaymentTest extends TestCase
         $this->seed(CatalogSeeder::class);
 
         Http::fake([
+            'https://api.razorpay.com/v1/payments/pay_valid_456' => Http::response([
+                'id' => 'pay_valid_456',
+                'order_id' => 'order_valid_123',
+                'amount' => 59900,
+                'currency' => 'INR',
+                'status' => 'captured',
+            ], 200),
+            'https://api.razorpay.com/v1/orders' => Http::response([
+                'id' => 'order_fake_test_12345',
+                'entity' => 'order',
+                'amount' => 39900,
+                'currency' => 'INR',
+                'status' => 'created',
+            ], 200),
             'https://api.razorpay.com/*' => Http::response([
                 'id' => 'order_fake_test_12345',
                 'entity' => 'order',

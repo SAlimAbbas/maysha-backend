@@ -72,6 +72,19 @@ class PaymentController extends Controller
             return $this->error('Invalid payment signature verification failed.', 400);
         }
 
+        // Verify payment details with Razorpay API if credentials are configured
+        $gatewayPayment = $this->razorpayService->fetchPayment($paymentId);
+        if ($gatewayPayment) {
+            $gatewayAmount = (int) ($gatewayPayment['amount'] ?? 0);
+            $gatewayOrderId = (string) ($gatewayPayment['order_id'] ?? '');
+
+            if ($gatewayOrderId !== $orderId || $gatewayAmount !== (int) $payment->amount_paise) {
+                $payment->update(['status' => 'failed']);
+
+                return $this->error('Payment amount or order mismatch detected from gateway.', 422);
+            }
+        }
+
         // Idempotent: If already captured and order paid, return success
         if ($payment->status === 'captured' && $payment->order?->status === 'paid') {
             return $this->success(null, 'Payment already verified.');

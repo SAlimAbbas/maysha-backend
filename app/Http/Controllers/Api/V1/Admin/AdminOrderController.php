@@ -79,8 +79,20 @@ class AdminOrderController extends Controller
             return $this->success(new OrderResource($order), 'Status is already '.$newStatus);
         }
 
+        if (! $order->canTransitionTo($newStatus)) {
+            return $this->error("Cannot transition order status from '{$oldStatus}' to '{$newStatus}'.", 422);
+        }
+
         DB::transaction(function () use ($order, $oldStatus, $newStatus, $request) {
             $updates = ['status' => $newStatus];
+
+            if ($newStatus === 'shipped' && ! $order->shipped_at) {
+                $updates['shipped_at'] = now();
+            }
+
+            if ($newStatus === 'delivered' && ! $order->delivered_at) {
+                $updates['delivered_at'] = now();
+            }
 
             if ($newStatus === 'paid' && ! $order->paid_at) {
                 $updates['paid_at'] = now();
@@ -98,8 +110,8 @@ class AdminOrderController extends Controller
                 'note' => $request->input('note') ?? "Status updated from '{$oldStatus}' to '{$newStatus}' by administrator.",
             ]);
 
-            // If cancelled or refunded from an active status, restore variant stock
-            if (in_array($newStatus, ['cancelled', 'refunded']) && ! in_array($oldStatus, ['cancelled', 'refunded'])) {
+            // Only restore variant stock if cancelled/refunded from unfulfilled states (never restock items already shipped or in transit)
+            if (in_array($newStatus, ['cancelled', 'refunded']) && in_array($oldStatus, ['pending_payment', 'paid', 'processing'])) {
                 foreach ($order->items as $item) {
                     if ($item->variant) {
                         $item->variant->increment('stock', $item->quantity);

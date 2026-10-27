@@ -52,6 +52,7 @@ return [
         'api_token' => env('CLOUDFLARE_API_TOKEN'),
         'images_delivery_url' => env('CLOUDFLARE_IMAGES_DELIVERY_URL', 'https://imagedelivery.net/'),
         'stream_customer_code' => env('CLOUDFLARE_STREAM_CUSTOMER_CODE'),
+        'turnstile_secret' => env('TURNSTILE_SECRET'),
     ],
 
     'bff' => [
