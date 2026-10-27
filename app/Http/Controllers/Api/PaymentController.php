@@ -140,6 +140,8 @@ class PaymentController extends Controller
                             $tokenCart->update(['coupon_id' => null]);
                         }
                     }
+
+                    \App\Jobs\CreateShiprocketShipmentJob::dispatch($order->id);
                 }
             }
         });
@@ -216,6 +218,8 @@ class PaymentController extends Controller
                                 'status' => 'paid',
                                 'note' => "Webhook payment.captured confirmed (Payment ID: {$gatewayPaymentId}).",
                             ]);
+
+                            \App\Jobs\CreateShiprocketShipmentJob::dispatch($order->id);
                         }
                     }
                 });

@@ -241,6 +241,11 @@ class CreateOrderAction
             }
         }
 
+        // 4. Dispatch Shiprocket fulfillment job for COD orders
+        if ($paymentMethod === 'cod') {
+            \App\Jobs\CreateShiprocketShipmentJob::dispatch($order->id);
+        }
+
         return $order->load('items');
     }
 }

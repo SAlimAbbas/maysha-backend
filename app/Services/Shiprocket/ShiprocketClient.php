@@ -51,11 +51,10 @@ class ShiprocketClient
             }
 
             try {
-                $response = Http::baseUrl($this->baseUrl)
-                    ->withOptions(['verify' => true])
+                $response = Http::withOptions(['verify' => true])
                     ->timeout(15)
                     ->retry(2, 500, throw: false)
-                    ->post('/auth/login', [
+                    ->post($this->baseUrl.'/auth/login', [
                         'email' => $this->email,
                         'password' => $this->password,
                     ]);

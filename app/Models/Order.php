@@ -40,7 +40,7 @@ class Order extends Model
     public const ALLOWED_TRANSITIONS = [
         'pending_payment' => ['processing', 'paid', 'cancelled'],
         'paid' => ['processing', 'shipped', 'cancelled', 'refunded'],
-        'processing' => ['shipped', 'cancelled', 'refunded'],
+        'processing' => ['shipped', 'delivered', 'cancelled', 'refunded'],
         'shipped' => ['delivered', 'ndr', 'rto', 'exception', 'refunded'],
         'out_for_delivery' => ['delivered', 'ndr', 'rto', 'exception'],
         'ndr' => ['shipped', 'delivered', 'rto', 'exception'],
