@@ -149,6 +149,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/webhook', [PaymentController::class, 'handleWebhook']); // Signature verified, no IP throttle
     });
 
+    // Neutral Logistics Webhook (Shiprocket rejects URLs with shiprocket, kartrocket, sr, kr)
+    Route::post('/logistics/hook', [\App\Http\Controllers\Api\V1\ShippingWebhookController::class, 'handle'])
+        ->middleware('throttle:60,1');
+
     // Newsletter & Contact
     Route::post('/newsletter', [ContactController::class, 'subscribe'])->middleware('throttle:newsletter');
     Route::post('/contact', [ContactController::class, 'contact'])->middleware('throttle:contact');

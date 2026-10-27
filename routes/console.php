@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('orders:expire-unpaid')->everyFiveMinutes();
+Schedule::command('shipments:reconcile')->everyThirtyMinutes();
+Schedule::command('shiprocket:check-wallet')->daily();
