@@ -18,6 +18,10 @@ class ProductVariant extends Model
         'stock',
         'low_stock_threshold',
         'is_active',
+        'weight_grams',
+        'length_cm',
+        'breadth_cm',
+        'height_cm',
     ];
 
     protected $casts = [
@@ -26,6 +30,10 @@ class ProductVariant extends Model
         'stock' => 'integer',
         'low_stock_threshold' => 'integer',
         'is_active' => 'boolean',
+        'weight_grams' => 'integer',
+        'length_cm' => 'decimal:2',
+        'breadth_cm' => 'decimal:2',
+        'height_cm' => 'decimal:2',
     ];
 
     public function product()
@@ -46,5 +54,25 @@ class ProductVariant extends Model
     public function getInStockAttribute(): bool
     {
         return $this->is_active && $this->stock > 0;
+    }
+
+    public function getEffectiveWeightGramsAttribute(): int
+    {
+        return (int) ($this->weight_grams ?? SiteSetting::get('default_weight_grams', 250));
+    }
+
+    public function getEffectiveLengthCmAttribute(): float
+    {
+        return (float) ($this->length_cm ?? SiteSetting::get('default_length_cm', 10));
+    }
+
+    public function getEffectiveBreadthCmAttribute(): float
+    {
+        return (float) ($this->breadth_cm ?? SiteSetting::get('default_breadth_cm', 10));
+    }
+
+    public function getEffectiveHeightCmAttribute(): float
+    {
+        return (float) ($this->height_cm ?? SiteSetting::get('default_height_cm', 10));
     }
 }

@@ -56,6 +56,18 @@ class AdminSettingController extends Controller
             'seo_shop_title' => 'Shop All Botanical Formulations | Maysha',
             'seo_shop_description' => 'Explore all cleansers, serums, toners, moisturizers, and room mists thoughtfully engineered for real skin.',
             'admin_2fa_enabled' => false,
+            'shiprocket_enabled' => false,
+            'shiprocket_pickup_location' => 'Primary',
+            'shiprocket_auto_create' => false,
+            'shiprocket_courier_strategy' => 'cheapest',
+            'shiprocket_preferred_courier_ids' => '',
+            'default_weight_grams' => 250,
+            'default_length_cm' => 10.0,
+            'default_breadth_cm' => 10.0,
+            'default_height_cm' => 10.0,
+            'pickup_pincode' => '560001',
+            'return_window_days' => 7,
+            'low_wallet_threshold' => 1000,
         ];
 
         $merged = array_merge($defaults, $allSettings);
@@ -115,6 +127,18 @@ class AdminSettingController extends Controller
             'gstin',
             'admin_2fa_enabled',
             'admin_2fa_pin',
+            'shiprocket_enabled',
+            'shiprocket_pickup_location',
+            'shiprocket_auto_create',
+            'shiprocket_courier_strategy',
+            'shiprocket_preferred_courier_ids',
+            'default_weight_grams',
+            'default_length_cm',
+            'default_breadth_cm',
+            'default_height_cm',
+            'pickup_pincode',
+            'return_window_days',
+            'low_wallet_threshold',
         ];
 
         $updatedKeys = [];

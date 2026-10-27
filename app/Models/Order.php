@@ -103,6 +103,16 @@ class Order extends Model
         return $this->hasMany(Refund::class);
     }
 
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class)->latestOfMany();
+    }
+
+    public function shipments()
+    {
+        return $this->hasMany(Shipment::class);
+    }
+
     public function getSubtotalRupeesAttribute(): int
     {
         return (int) round($this->subtotal_paise / 100);

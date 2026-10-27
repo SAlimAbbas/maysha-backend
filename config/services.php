@@ -59,4 +59,11 @@ return [
         'secret' => env('BFF_SECRET'),
     ],
 
+    'shiprocket' => [
+        'base_url' => env('SHIPROCKET_BASE_URL', 'https://apiv2.shiprocket.in/v1/external'),
+        'email' => env('SHIPROCKET_EMAIL'),
+        'password' => env('SHIPROCKET_PASSWORD'),
+        'webhook_token' => env('SHIPROCKET_WEBHOOK_TOKEN'),
+    ],
+
 ];
