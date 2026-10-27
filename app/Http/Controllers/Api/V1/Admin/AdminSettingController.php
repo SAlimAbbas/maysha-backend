@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\CatalogCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AdminSettingController extends Controller
 {
@@ -72,6 +73,15 @@ class AdminSettingController extends Controller
     {
         $settings = $request->input('settings', []);
 
+        // Security S1: Refuse to enable admin 2FA without an existing or newly provided PIN
+        if (array_key_exists('admin_2fa_enabled', $settings) && filter_var($settings['admin_2fa_enabled'], FILTER_VALIDATE_BOOLEAN)) {
+            $hasNewPin = ! empty($settings['admin_2fa_pin']);
+            $hasExistingPin = ! empty(SiteSetting::get('admin_2fa_pin'));
+            if (! $hasNewPin && ! $hasExistingPin) {
+                return $this->error('Cannot enable Admin 2FA without configuring a secure PIN.', 422);
+            }
+        }
+
         // Security (Finding 5): Strict key allowlist
         $allowedKeys = [
             'store_name',
@@ -110,8 +120,16 @@ class AdminSettingController extends Controller
         $updatedKeys = [];
         foreach ($settings as $key => $val) {
             if (in_array($key, $allowedKeys, true)) {
-                SiteSetting::set($key, $val);
-                $updatedKeys[] = $key;
+                if ($key === 'admin_2fa_pin') {
+                    if (! empty($val)) {
+                        $hashedVal = Hash::needsRehash((string) $val) ? Hash::make((string) $val) : (string) $val;
+                        SiteSetting::set($key, $hashedVal);
+                        $updatedKeys[] = $key;
+                    }
+                } else {
+                    SiteSetting::set($key, $val);
+                    $updatedKeys[] = $key;
+                }
             }
         }
 

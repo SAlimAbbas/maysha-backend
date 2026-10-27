@@ -83,19 +83,49 @@ class AuthController extends Controller
             return $this->error('Invalid credentials provided.', 401);
         }
 
-        // Enforce 2FA security PIN for administrator accounts when 2FA is active
+        // Enforce 2FA for administrator accounts (TOTP or secure PIN)
         if ($user->role === 'admin') {
-            $is2FaEnabled = filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN);
-            if ($is2FaEnabled) {
-                $configuredPin = (string) SiteSetting::get('admin_2fa_pin', '9281');
-                $providedPin = (string) ($request->input('two_factor_pin') ?? $request->input('pin') ?? '');
-
-                if ($providedPin === '') {
-                    return $this->error('Two-Factor Authentication PIN is required for administrator login.', 422);
+            if ($user->hasTwoFactorEnabled()) {
+                $providedCode = (string) ($request->input('two_factor_code') ?? $request->input('two_factor_pin') ?? $request->input('pin') ?? '');
+                if ($providedCode === '') {
+                    return $this->error('Two-Factor Authentication code is required for administrator login.', 422);
                 }
 
-                if (! hash_equals($configuredPin, $providedPin)) {
-                    return $this->error('Invalid 2FA security PIN. Administrative access denied.', 422);
+                $totpService = app(\App\Services\TotpService::class);
+                $validTotp = $totpService->verify($user->two_factor_secret, $providedCode);
+
+                if (! $validTotp && ! empty($user->two_factor_recovery_codes)) {
+                    $recoveryResult = $totpService->verifyAndConsumeRecoveryCode($providedCode, $user->two_factor_recovery_codes);
+                    if ($recoveryResult['valid']) {
+                        $validTotp = true;
+                        $user->update(['two_factor_recovery_codes' => $recoveryResult['remainingHashed']]);
+                    }
+                }
+
+                if (! $validTotp) {
+                    return $this->error('Invalid 2FA authentication code. Administrative access denied.', 422);
+                }
+            } else {
+                $is2FaEnabled = filter_var(SiteSetting::get('admin_2fa_enabled', false), FILTER_VALIDATE_BOOLEAN);
+                if ($is2FaEnabled) {
+                    $configuredPin = (string) SiteSetting::get('admin_2fa_pin');
+                    if (empty($configuredPin)) {
+                        return $this->error('Admin 2FA is active but no PIN has been set. Please contact an administrator.', 500);
+                    }
+
+                    $providedPin = (string) ($request->input('two_factor_pin') ?? $request->input('two_factor_code') ?? $request->input('pin') ?? '');
+
+                    if ($providedPin === '') {
+                        return $this->error('Two-Factor Authentication PIN is required for administrator login.', 422);
+                    }
+
+                    $pinMatches = Hash::needsRehash($configuredPin)
+                        ? hash_equals($configuredPin, $providedPin)
+                        : Hash::check($providedPin, $configuredPin);
+
+                    if (! $pinMatches) {
+                        return $this->error('Invalid 2FA security PIN. Administrative access denied.', 422);
+                    }
                 }
             }
         }

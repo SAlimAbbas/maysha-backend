@@ -28,6 +28,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone',
         'last_login_at',
         'email_verified_at',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
     ];
 
     /**
@@ -39,6 +42,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'remember_token',
         'google_id',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -52,7 +57,17 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_recovery_codes' => 'array',
         ];
+    }
+
+    /**
+     * Determine if the user has 2FA confirmed.
+     */
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && ! empty($this->two_factor_secret);
     }
 
     /**

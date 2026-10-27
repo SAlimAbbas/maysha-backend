@@ -209,5 +209,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/settings', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'update']);
         Route::get('/subscribers', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'subscribers']);
         Route::post('/newsletter/broadcast', [\App\Http\Controllers\Api\V1\Admin\AdminSettingController::class, 'broadcast']);
+
+        // Two-Factor Authentication (TOTP)
+        Route::get('/2fa/status', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'status']);
+        Route::post('/2fa/setup', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'setup']);
+        Route::post('/2fa/confirm', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'confirm']);
+        Route::post('/2fa/disable', [\App\Http\Controllers\Api\V1\Admin\Admin2FAController::class, 'disable']);
     });
 });
