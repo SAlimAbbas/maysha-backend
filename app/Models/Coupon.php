@@ -89,15 +89,29 @@ class Coupon extends Model
             }
         }
 
-        // Global usage limit check
-        if ($this->usage_limit && $this->redemptions()->count() >= $this->usage_limit) {
-            return "Coupon '{$this->code}' has reached its maximum redemption limit.";
+        // Global usage limit check (counting completed/active orders)
+        if ($this->usage_limit) {
+            $globalRedemptions = $this->redemptions()
+                ->where(function ($q) {
+                    $q->whereNull('order_id')
+                        ->orWhereHas('order', fn ($oq) => $oq->whereIn('status', ['paid', 'processing', 'shipped', 'delivered']));
+                })
+                ->count();
+            if ($globalRedemptions >= $this->usage_limit) {
+                return "Coupon '{$this->code}' has reached its maximum redemption limit.";
+            }
         }
 
         // Per-user / per-guest usage limit check
         if ($this->per_user_limit) {
             if ($user) {
-                $userRedemptions = $this->redemptions()->where('user_id', $user->id)->count();
+                $userRedemptions = $this->redemptions()
+                    ->where('user_id', $user->id)
+                    ->where(function ($q) {
+                        $q->whereNull('order_id')
+                            ->orWhereHas('order', fn ($oq) => $oq->whereIn('status', ['paid', 'processing', 'shipped', 'delivered']));
+                    })
+                    ->count();
                 if ($userRedemptions >= $this->per_user_limit) {
                     return "You have already redeemed coupon '{$this->code}' the maximum allowed number of times.";
                 }

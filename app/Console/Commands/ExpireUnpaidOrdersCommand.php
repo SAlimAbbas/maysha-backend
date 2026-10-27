@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\CouponRedemption;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use Illuminate\Console\Command;
@@ -50,6 +51,9 @@ class ExpireUnpaidOrdersCommand extends Command
                         $item->variant->increment('stock', $item->quantity);
                     }
                 }
+
+                // Release coupon redemption if any so customer can reuse coupon
+                CouponRedemption::where('order_id', $order->id)->delete();
 
                 // Mark order as cancelled
                 $order->update([
