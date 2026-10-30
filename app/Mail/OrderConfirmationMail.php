@@ -40,7 +40,10 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            htmlString: "<h1>Thank you for your order, {$this->order->shipping_address['name']}!</h1><p>Order Reference: <strong>{$this->order->reference}</strong></p><p>Total: ₹{$this->order->total_rupees}</p><p>We are carefully formulating and preparing your clean skincare package.</p>",
+            view: 'emails.order_confirmation',
+            with: [
+                'order' => $this->order->loadMissing(['items', 'user']),
+            ],
         );
     }
 }

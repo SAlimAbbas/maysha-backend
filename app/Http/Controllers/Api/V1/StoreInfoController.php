@@ -26,6 +26,7 @@ class StoreInfoController extends Controller
                 'freeShippingThreshold' => (int) SiteSetting::get('free_shipping_threshold', env('FREE_SHIPPING_THRESHOLD', 999)),
                 'shippingFee' => (int) SiteSetting::get('shipping_fee', env('SHIPPING_FEE', 99)),
                 'codEnabled' => (bool) SiteSetting::get('cod_enabled', true),
+                'codFee' => (int) SiteSetting::get('cod_fee', 50),
                 'codMaxRupees' => (int) SiteSetting::get('cod_max_rupees', 5000),
                 'announcementMessages' => SiteSetting::get('announcement_messages', [
                     'Free Express Shipping on Orders Above ₹999',

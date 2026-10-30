@@ -86,6 +86,7 @@ class OrderController extends Controller
          }
 
          $taxPaise = (int) round($subtotalPaise * (18 / 118)); // 18% inclusive GST estimate
+         $codFeeRupees = (int) SiteSetting::get('cod_fee', 50);
 
          return $this->success([
              'subtotal' => (int) round($subtotalPaise / 100),
@@ -97,6 +98,7 @@ class OrderController extends Controller
              'freeShippingQualified' => $subtotalPaise >= $thresholdPaise,
              'codAvailable' => $codAvailable,
              'codMaxRupees' => $codMaxRupees,
+             'codFee' => $codFeeRupees,
              'codReason' => $codReason,
          ], 'Checkout quote computed.');
      }
@@ -265,6 +267,7 @@ class OrderController extends Controller
                 'subtotal' => $order->subtotal_rupees,
                 'discount' => $order->discount_rupees,
                 'shipping' => $order->shipping_rupees,
+                'codFee' => $order->cod_fee_rupees,
                 'tax' => $order->tax_rupees,
                 'total' => $order->total_rupees,
             ],

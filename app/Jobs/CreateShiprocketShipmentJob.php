@@ -44,7 +44,12 @@ class CreateShiprocketShipmentJob implements ShouldQueue, ShouldBeUnique
         SchedulePickupAction $schedulePickupAction,
         GenerateLabelAction $generateLabelAction
     ): void {
-        $enabled = (bool) SiteSetting::get('shiprocket_enabled', true);
+        if (app()->environment('testing') && ! (bool) SiteSetting::get('shiprocket_enabled', false)) {
+            Log::info("Shiprocket is disabled in testing environment. Skipping shipment for order {$this->orderId}.");
+            return;
+        }
+
+        $enabled = (bool) SiteSetting::get('shiprocket_enabled', env('SHIPROCKET_ENABLED', true));
         if (! $enabled) {
             Log::info("Shiprocket is disabled in settings. Skipping shipment for order {$this->orderId}.");
             return;

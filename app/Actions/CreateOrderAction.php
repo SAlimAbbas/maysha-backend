@@ -138,7 +138,14 @@ class CreateOrderAction
             $shippingFeePaise = (int) SiteSetting::get('shipping_fee', env('SHIPPING_FEE', 99)) * 100;
             $shippingPaise = ($subtotalPaise >= $thresholdPaise) ? 0 : $shippingFeePaise;
 
-            $totalPaise = max(0, $subtotalPaise - $discountPaise + $shippingPaise);
+            // Cash on Delivery (COD) fee calculation
+            $codFeePaise = 0;
+            if ($paymentMethod === 'cod') {
+                $codFeeRupees = (int) SiteSetting::get('cod_fee', 50);
+                $codFeePaise = max(0, $codFeeRupees * 100);
+            }
+
+            $totalPaise = max(0, $subtotalPaise - $discountPaise + $shippingPaise + $codFeePaise);
 
             // Enforce Cash on Delivery (COD) Rules
             if ($paymentMethod === 'cod') {
@@ -188,6 +195,7 @@ class CreateOrderAction
                 'subtotal_paise' => $subtotalPaise,
                 'discount_paise' => $discountPaise,
                 'shipping_paise' => $shippingPaise,
+                'cod_fee_paise' => $codFeePaise,
                 'tax_paise' => $taxPaise,
                 'total_paise' => $totalPaise,
                 'currency' => 'INR',

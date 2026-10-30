@@ -38,6 +38,7 @@ class OrderResource extends JsonResource
             'subtotal' => $this->subtotal_rupees,
             'discount' => $this->discount_rupees,
             'shipping' => $this->shipping_rupees,
+            'codFee' => $this->cod_fee_rupees,
             'tax' => $this->tax_rupees,
             'total' => $this->total_rupees,
             'currency' => $this->currency,

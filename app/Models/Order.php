@@ -21,6 +21,7 @@ class Order extends Model
         'subtotal_paise',
         'discount_paise',
         'shipping_paise',
+        'cod_fee_paise',
         'tax_paise',
         'total_paise',
         'currency',
@@ -68,6 +69,7 @@ class Order extends Model
         'subtotal_paise' => 'integer',
         'discount_paise' => 'integer',
         'shipping_paise' => 'integer',
+        'cod_fee_paise' => 'integer',
         'tax_paise' => 'integer',
         'total_paise' => 'integer',
         'shipping_address' => 'array',
@@ -126,6 +128,11 @@ class Order extends Model
     public function getShippingRupeesAttribute(): int
     {
         return (int) round($this->shipping_paise / 100);
+    }
+
+    public function getCodFeeRupeesAttribute(): int
+    {
+        return (int) round(($this->cod_fee_paise ?? 0) / 100);
     }
 
     public function getTotalRupeesAttribute(): int

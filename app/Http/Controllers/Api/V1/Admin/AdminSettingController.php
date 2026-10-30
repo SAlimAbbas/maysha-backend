@@ -34,6 +34,9 @@ class AdminSettingController extends Controller
             'store_address' => 'Maysha Organics Lab, Mumbai, MH, India',
             'free_shipping_threshold' => 999,
             'shipping_fee' => 99,
+            'cod_enabled' => true,
+            'cod_fee' => 50,
+            'cod_max_rupees' => 5000,
             'announcement_messages' => [
                 'FREE Express Shipping on all orders above ₹999',
                 '100% Biocompatible • Paraben & Cruelty Free',
@@ -124,6 +127,7 @@ class AdminSettingController extends Controller
             'seo_shop_description',
             'cod_enabled',
             'cod_fee',
+            'cod_max_rupees',
             'gstin',
             'admin_2fa_enabled',
             'admin_2fa_pin',
