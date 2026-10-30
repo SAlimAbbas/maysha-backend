@@ -28,6 +28,7 @@ class StoreInfoController extends Controller
                 'codEnabled' => (bool) SiteSetting::get('cod_enabled', true),
                 'codFee' => (int) SiteSetting::get('cod_fee', 50),
                 'codMaxRupees' => (int) SiteSetting::get('cod_max_rupees', 5000),
+                'emailVerificationRequired' => (bool) SiteSetting::get('checkout_email_verification_enabled', true),
                 'announcementMessages' => SiteSetting::get('announcement_messages', [
                     'Free Express Shipping on Orders Above ₹999',
                     'Get 10% Off on Your First Order with Code MAYSHA10',

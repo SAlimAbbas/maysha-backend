@@ -68,7 +68,8 @@ class AdminSettingController extends Controller
             'default_length_cm' => 10.0,
             'default_breadth_cm' => 10.0,
             'default_height_cm' => 10.0,
-            'pickup_pincode' => '560001',
+            'pickup_pincode' => '132103',
+            'checkout_email_verification_enabled' => true,
             'return_window_days' => 7,
             'low_wallet_threshold' => 1000,
         ];
@@ -141,6 +142,7 @@ class AdminSettingController extends Controller
             'default_breadth_cm',
             'default_height_cm',
             'pickup_pincode',
+            'checkout_email_verification_enabled',
             'return_window_days',
             'low_wallet_threshold',
         ];

@@ -138,6 +138,8 @@ Route::prefix('v1')->group(function () {
     // Orders & Checkout Quote (Optional Sanctum Auth for Logged-In / Guest)
     Route::middleware('optional.sanctum')->group(function () {
         Route::post('/checkout/quote', [OrderController::class, 'quote'])->middleware('throttle:checkout');
+        Route::post('/checkout/send-otp', [\App\Http\Controllers\Api\V1\CheckoutVerificationController::class, 'sendOtp'])->middleware('throttle:checkout');
+        Route::post('/checkout/verify-otp', [\App\Http\Controllers\Api\V1\CheckoutVerificationController::class, 'verifyOtp'])->middleware('throttle:checkout');
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:checkout');
         Route::get('/orders/{reference}', [OrderController::class, 'show']);
         Route::get('/orders/{reference}/invoice', [OrderController::class, 'invoice']);

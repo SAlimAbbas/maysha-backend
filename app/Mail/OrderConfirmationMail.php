@@ -29,8 +29,11 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $adminEmail = config('mail.from.address', 'info@mayshaindia.com');
+
         return new Envelope(
             subject: "Your Maysha Order {$this->order->reference} has been received!",
+            bcc: array_filter([$adminEmail]),
         );
     }
 

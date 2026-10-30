@@ -23,7 +23,7 @@ class CheckServiceabilityAction
     public function execute(string $deliveryPincode, float $weightKg = 0.5, bool $cod = false, ?string $pickupPincode = null): array
     {
         $deliveryPincode = trim($deliveryPincode);
-        $pickupPincode = trim($pickupPincode ?: (SiteSetting::get('pickup_pincode', '560001') ?? '560001'));
+        $pickupPincode = trim($pickupPincode ?: (SiteSetting::get('pickup_pincode', '132103') ?? '132103'));
         $weightKg = max(0.1, round($weightKg, 2));
         $weightBucket = round($weightKg, 1);
         $codFlag = $cod ? 1 : 0;

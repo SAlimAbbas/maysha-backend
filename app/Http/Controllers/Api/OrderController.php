@@ -115,13 +115,14 @@ class OrderController extends Controller
             'shipping_address' => 'required|array',
             'shipping_address.name' => 'required|string|max:255',
             'shipping_address.phone' => 'required|string|max:20',
-            'shipping_address.line1' => 'required|string|max:255',
+            'shipping_address.line1' => 'required|string|min:6|max:255',
             'shipping_address.city' => 'required|string|max:100',
             'shipping_address.state' => 'required|string|max:100',
             'shipping_address.pincode' => ['required', 'string', 'regex:/^[1-9][0-9]{5}$/'],
             'payment_method' => 'required|in:razorpay,cod',
             'coupon_code' => 'nullable|string|max:50',
             'guest_email' => 'nullable|email|max:255',
+            'verification_token' => 'nullable|string',
             'cart_token' => 'nullable|string',
         ]);
 
@@ -133,6 +134,26 @@ class OrderController extends Controller
             return $this->error('A valid guest email address is required for checkout.', 422, [
                 'guest_email' => ['Guest email is required when not logged in.'],
             ]);
+        }
+
+        $email = strtolower(trim((string) ($request->input('guest_email') ?: $user?->email)));
+        $verificationRequired = (bool) SiteSetting::get('checkout_email_verification_enabled', ! app()->environment('testing'));
+
+        if ($verificationRequired && $request->input('payment_method') === 'cod') {
+            $isVerified = false;
+            if ($user && $user->hasVerifiedEmail()) {
+                $isVerified = true;
+            } else {
+                $token = (string) $request->input('verification_token');
+                $isVerified = \App\Http\Controllers\Api\V1\CheckoutVerificationController::isEmailVerified($email, $token);
+            }
+
+            if (! $isVerified) {
+                return $this->error('Please verify your email address with the 6-digit confirmation code before placing your Cash on Delivery order.', 422, [
+                    'email_verification_required' => [true],
+                    'guest_email' => ['Email verification is required for Cash on Delivery.'],
+                ]);
+            }
         }
 
         $cartToClear = null;

@@ -41,8 +41,20 @@ class AssignCourierAction
                 $courierId = $this->resolveCourierByStrategy($shipment, $order);
             }
 
-            // Call Shiprocket API
-            $response = $this->client->assignCourier($shipment->sr_shipment_id, $courierId);
+            // Call Shiprocket API with automatic fallback
+            try {
+                $response = $this->client->assignCourier($shipment->sr_shipment_id, $courierId);
+            } catch (\App\Exceptions\Shiprocket\ShiprocketValidationException $e) {
+                // If a specific courier was rejected as unserviceable, fall back to Shiprocket's own auto-allocation engine
+                if ($courierId) {
+                    \Illuminate\Support\Facades\Log::warning("Courier {$courierId} rejected for shipment {$shipment->id}. Retrying with auto-allocation.", [
+                        'error' => $e->getMessage(),
+                    ]);
+                    $response = $this->client->assignCourier($shipment->sr_shipment_id, null);
+                } else {
+                    throw $e;
+                }
+            }
 
             $awbCode = $response['response']['data']['awb_code'] ?? ($response['awb_code'] ?? null);
             $courierName = $response['response']['data']['courier_name'] ?? ($response['courier_name'] ?? 'Shiprocket Courier');
